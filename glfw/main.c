@@ -4,8 +4,8 @@
 
 #define DIE(msg)                                \
     do {                                        \
-        fprintf(stderr, msg "\n");                   \
-        exit(EXIT_FAILURE);                               \
+        fprintf(stderr, msg "\n");              \
+        exit(EXIT_FAILURE);                     \
     } while(0)
 
 static void error_callback(int error, const char *desc) {
