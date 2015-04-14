@@ -76,14 +76,15 @@ trait BaseWindow {
     println(s"OpenGL Version: ${glGetString(GL_VERSION)}")
     var lastTime = glfwGetTime()
     var numFrames = 0
+    val updateInterval = 2.5
 
     while (glfwWindowShouldClose(window) == GL_FALSE) {
       numFrames += 1
       val currentTime = glfwGetTime()
-      if (currentTime - lastTime >= 1.0) {
+      if (currentTime - lastTime >= updateInterval) {
         val msPerFrame = (currentTime - lastTime) * 1000.0 / numFrames
         glfwSetWindowTitle(window, s"ms/f: $msPerFrame, FPS: ${1/msPerFrame*1000.0}")
-        lastTime += 1.0
+        lastTime += updateInterval
         numFrames = 0
       }
 

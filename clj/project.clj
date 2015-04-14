@@ -6,4 +6,4 @@
   :dependencies [[org.clojure/clojure "1.6.0"]]
   :source-paths ["src/clj"]
   :jvm-opts ["-Djava.library.path=./native/linux/x64"])
-
+  :main opengl.core)
