@@ -30,6 +30,7 @@ trait BaseWindow {
 
       glfwDestroyWindow(window)
       keyCallback.release()
+      cleanup()
     } finally {
       glfwTerminate()
       errorCallback.release()
@@ -45,6 +46,8 @@ trait BaseWindow {
     glfwDefaultWindowHints();
     glfwWindowHint(GLFW_VISIBLE, GL_FALSE);
     glfwWindowHint(GLFW_RESIZABLE, GL_TRUE);
+
+    windowHints()
 
     val window: GLFWWindow = glfwCreateWindow(width, height, "Hello from Scala!", NULL, NULL)
     if (window == NULL)
@@ -74,6 +77,9 @@ trait BaseWindow {
   def loop(window: GLFWWindow): Unit = {
     GLContext.createFromCurrent()
     println(s"OpenGL Version: ${glGetString(GL_VERSION)}")
+
+    setup()
+
     var lastTime = glfwGetTime()
     var numFrames = 0
     val updateInterval = 2.5
@@ -98,4 +104,8 @@ trait BaseWindow {
   }
 
   def loopBody(fbWidth: Int, fbHeight: Int): Unit
+
+  def setup(): Unit = {}
+  def cleanup(): Unit = {}
+  def windowHints(): Unit = {}
 }
