@@ -6,7 +6,7 @@ import org.lwjgl.{Sys, BufferUtils}
 import org.lwjgl.glfw._
 import org.lwjgl.opengl._
 
-import java.nio.FloatBuffer
+import java.nio.ByteBuffer
 
 import org.lwjgl.glfw.Callbacks._
 import org.lwjgl.glfw.GLFW._
@@ -16,7 +16,7 @@ import org.lwjgl.opengl.GL20._
 import org.lwjgl.opengl.GL30._
 import org.lwjgl.system.MemoryUtil._
 
-object Chapter2_1 extends BaseWindow {
+object Chapter2 extends BaseWindow {
   val vertexShader = """
 #version 400
 
@@ -47,7 +47,6 @@ void main(void)
   var programId = 0
   var vaoId = 0
   var vboId = 0
-  var colorBufferId = 0
 
   val width = 800
   val height = 600
@@ -91,25 +90,18 @@ void main(void)
       throw new GLException("could not create shaders", errorCheckValue)
   }
 
-  def floatBuffer(inputs: Float*): FloatBuffer = {
-    val buffer = BufferUtils.createFloatBuffer(inputs.length)
-    inputs foreach (buffer put _)
+  def vertexBuffer(vertices: Vertex*): ByteBuffer = {
+    val buffer = BufferUtils.createByteBuffer(vertices.length * Vertex.byteSize)
+    vertices foreach (_ fillBuffer buffer)
     buffer.rewind()
     buffer
   }
 
   def createVBO(): Unit = {
-    val verticesBuffer = floatBuffer(
-      -0.8f,  0.8f, 0.0f, 1.0f,
-      0.8f,  0.8f, 0.0f, 1.0f,
-      -0.8f, -0.8f, 0.0f, 1.0f,
-      0.8f, -0.8f, 0.0f, 1.0f
-    )
-    val colorsBuffer = floatBuffer(
-      1.0f, 0.0f, 0.0f, 1.0f,
-      0.0f, 1.0f, 0.0f, 1.0f,
-      0.0f, 0.0f, 1.0f, 1.0f,
-      1.0f, 1.0f, 1.0f, 1.0f
+    val verticesBuffer = vertexBuffer(
+      Vertex(Vec4(-0.8f, -0.8f, 0.0f, 1.0f), ColorF(1.0f, 0.0f, 0.0f, 1.0f)),
+      Vertex(Vec4(0.0f,  0.8f, 0.0f, 1.0f), ColorF(0.0f, 1.0f, 0.0f, 1.0f)),
+      Vertex(Vec4(0.8f, -0.8f, 0.0f, 1.0f), ColorF(0.0f, 0.0f, 1.0f, 1.0f))
     )
 
     glGetError()
@@ -119,14 +111,11 @@ void main(void)
     vboId = glGenBuffers()
     glBindBuffer(GL_ARRAY_BUFFER, vboId)
     glBufferData(GL_ARRAY_BUFFER, verticesBuffer, GL_STATIC_DRAW)
-    glVertexAttribPointer(0, 4, GL_FLOAT, false, 0, 0)
-    glEnableVertexAttribArray(0)
 
-    colorBufferId = glGenBuffers()
-    glBindBuffer(GL_ARRAY_BUFFER, colorBufferId)
-    glBufferData(GL_ARRAY_BUFFER, colorsBuffer, GL_STATIC_DRAW)
-    glVertexAttribPointer(1, 4, GL_FLOAT, false, 0, 0)
-    glEnableVertexAttribArray(1)
+    glVertexAttribPointer(0, Vec4.size, GL_FLOAT, false, Vertex.byteSize, 0)
+    glVertexAttribPointer(1, ColorF.size, GL_FLOAT, false, Vertex.byteSize, Vertex.colorOffset)
+    glEnableVertexAttribArray(0)
+    glEnableVertexAttribArray(1)    
 
     val errorCheckValue = glGetError()
     if (errorCheckValue != GL_NO_ERROR)
@@ -157,7 +146,6 @@ void main(void)
     glDisableVertexAttribArray(1)
     glDisableVertexAttribArray(0)
     glBindBuffer(GL_ARRAY_BUFFER, 0)
-    glDeleteBuffers(colorBufferId)
     glDeleteBuffers(vboId)
 
     glBindVertexArray(0)
@@ -170,6 +158,6 @@ void main(void)
 
   def loopBody(fbWidth: Int, fbHeight: Int): Unit = {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4)
+    glDrawArrays(GL_TRIANGLES, 0, 4)
   }
 }
