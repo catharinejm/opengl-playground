@@ -48,8 +48,24 @@ void main(void)
   var vaoId = 0
   var vboId = 0
 
+  var bufferId = 0
+  val indexBufferIds = BufferUtils.createIntBuffer(2)
+  var activeIndexBuffer = 0
+
   val width = 600
   val height = 600
+
+  override val keyCallback = new GLFWKeyCallback {
+      override def invoke(window: GLFWWindow, key: Int, scancode: Int, action: Int, mods: Int): Unit = {
+        if (action == GLFW_RELEASE) key match {
+          case GLFW_KEY_ESCAPE => glfwSetWindowShouldClose(window, GL_TRUE)
+          case GLFW_KEY_T =>
+            activeIndexBuffer = if (activeIndexBuffer == 1) 0 else 1
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBufferIds.get(activeIndexBuffer))
+          case _ =>
+        }
+      }
+  }
 
   override def setup(): Unit = {
     createShaders()
@@ -97,11 +113,77 @@ void main(void)
     buffer
   }
 
+  def byteBuffer(bytes: Byte*): ByteBuffer = {
+    val buffer = BufferUtils.createByteBuffer(bytes.length)
+    bytes foreach (buffer put _)
+    buffer.rewind()
+    buffer
+  }
+
   def createVBO(): Unit = {
     val verticesBuffer = vertexBuffer(
-      Vertex(Vec4(-0.8f, -0.8f, 0.0f, 1.0f), ColorF(1.0f, 0.0f, 0.0f, 1.0f)),
-      Vertex(Vec4(0.0f,  0.8f, 0.0f, 1.0f), ColorF(0.0f, 1.0f, 0.0f, 1.0f)),
-      Vertex(Vec4(0.8f, -0.8f, 0.0f, 1.0f), ColorF(0.0f, 0.0f, 1.0f, 1.0f))
+	    Vertex(Vec4(0.0f, 0.0f, 0.0f, 1.0f), ColorF(1.0f, 1.0f, 1.0f, 1.0f)),
+	    // Top
+	    Vertex(Vec4(-0.2f, 0.8f, 0.0f, 1.0f), ColorF(0.0f, 1.0f, 0.0f, 1.0f)),
+	    Vertex(Vec4(0.2f, 0.8f, 0.0f, 1.0f), ColorF(0.0f, 0.0f, 1.0f, 1.0f)),
+	    Vertex(Vec4(0.0f, 0.8f, 0.0f, 1.0f), ColorF(0.0f, 1.0f, 1.0f, 1.0f)),
+	    Vertex(Vec4(0.0f, 1.0f, 0.0f, 1.0f), ColorF(1.0f, 0.0f, 0.0f, 1.0f)),
+	    // Bottom
+	    Vertex(Vec4(-0.2f, -0.8f, 0.0f, 1.0f), ColorF(0.0f, 0.0f, 1.0f, 1.0f)),
+	    Vertex(Vec4(0.2f, -0.8f, 0.0f, 1.0f), ColorF(0.0f, 1.0f, 0.0f, 1.0f)),
+	    Vertex(Vec4(0.0f, -0.8f, 0.0f, 1.0f), ColorF(0.0f, 1.0f, 1.0f, 1.0f)),
+	    Vertex(Vec4(0.0f, -1.0f, 0.0f, 1.0f), ColorF(1.0f, 0.0f, 0.0f, 1.0f)),
+	    // Left
+	    Vertex(Vec4(-0.8f, -0.2f, 0.0f, 1.0f), ColorF(0.0f, 1.0f, 0.0f, 1.0f)),
+	    Vertex(Vec4(-0.8f, 0.2f, 0.0f, 1.0f), ColorF(0.0f, 0.0f, 1.0f, 1.0f)),
+	    Vertex(Vec4(-0.8f, 0.0f, 0.0f, 1.0f), ColorF(0.0f, 1.0f, 1.0f, 1.0f)),
+	    Vertex(Vec4(-1.0f, 0.0f, 0.0f, 1.0f), ColorF(1.0f, 0.0f, 0.0f, 1.0f)),
+	    // Right
+	    Vertex(Vec4(0.8f, -0.2f, 0.0f, 1.0f), ColorF(0.0f, 0.0f, 1.0f, 1.0f)),
+	    Vertex(Vec4(0.8f, 0.2f, 0.0f, 1.0f), ColorF(0.0f, 1.0f, 0.0f, 1.0f)),
+	    Vertex(Vec4(0.8f, 0.0f, 0.0f, 1.0f), ColorF(0.0f, 1.0f, 1.0f, 1.0f)),
+	    Vertex(Vec4(1.0f, 0.0f, 0.0f, 1.0f), ColorF(1.0f, 0.0f, 0.0f, 1.0f))
+    )
+
+	  val indicesBuffer = byteBuffer(
+      // Top
+      0, 1, 3,
+	    0, 3, 2,
+	    3, 1, 4,
+	    3, 4, 2,
+	    // Bottom
+	    0, 5, 7,
+	    0, 7, 6,
+	    7, 5, 8,
+	    7, 8, 6,
+	    // Left
+	    0, 9, 11,
+	    0, 11, 10,
+	    11, 9, 12,
+	    11, 12, 10,
+	    // Right
+	    0, 13, 15,
+	    0, 15, 14,
+	    15, 13, 16,
+	    15, 16, 14
+    )
+
+    val altIndicesBuffer = byteBuffer(
+      // Outer square border:
+      3, 4, 16,
+      3, 15, 16,
+      15, 16, 8,
+      15, 7, 8,
+      7, 8, 12,
+      7, 11, 12,
+      11, 12, 4,
+      11, 3, 4,
+      
+      // Inner square
+      0, 11, 3,
+      0, 3, 15,
+      0, 15, 7,
+      0, 7, 11
     )
 
     glGetError()
@@ -116,6 +198,14 @@ void main(void)
     glVertexAttribPointer(1, ColorF.size, GL_FLOAT, false, Vertex.byteSize, Vertex.colorOffset)
     glEnableVertexAttribArray(0)
     glEnableVertexAttribArray(1)    
+
+    glGenBuffers(indexBufferIds)
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBufferIds.get(0))
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indicesBuffer, GL_STATIC_DRAW)
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBufferIds.get(1))
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, altIndicesBuffer, GL_STATIC_DRAW)
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBufferIds.get(0))
 
     val errorCheckValue = glGetError()
     if (errorCheckValue != GL_NO_ERROR)
@@ -148,6 +238,9 @@ void main(void)
     glBindBuffer(GL_ARRAY_BUFFER, 0)
     glDeleteBuffers(vboId)
 
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    glDeleteBuffers(indexBufferIds)
+
     glBindVertexArray(0)
     glDeleteVertexArrays(vaoId)
 
@@ -158,6 +251,9 @@ void main(void)
 
   def loopBody(fbWidth: Int, fbHeight: Int): Unit = {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-    glDrawArrays(GL_TRIANGLES, 0, 4)
+    if (activeIndexBuffer == 0)
+      glDrawElements(GL_TRIANGLES, 48, GL_UNSIGNED_BYTE, NULL)
+    else
+      glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_BYTE, NULL)
   }
 }
