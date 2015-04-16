@@ -16,6 +16,12 @@ object Errors {
       case GL_STACK_OVERFLOW => "Stack overflow"
       case _ => s"Unknown error ($glError)"
     }
+
+  def throwIfGlError(msg: String) = {
+    val errorVal = glGetError
+    if (errorVal != GL_NO_ERROR)
+      throw new GLException(msg)
+  }
 }
 
 

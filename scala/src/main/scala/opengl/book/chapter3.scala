@@ -1,6 +1,7 @@
 package opengl.book
 
 import opengl._
+import Utils._
 
 import org.lwjgl.{Sys, BufferUtils}
 import org.lwjgl.glfw._
@@ -106,19 +107,6 @@ void main(void)
       throw new GLException("could not create shaders", errorCheckValue)
   }
 
-  def vertexBuffer(vertices: Vertex*): ByteBuffer = {
-    val buffer = BufferUtils.createByteBuffer(vertices.length * Vertex.byteSize)
-    vertices foreach (_ fillBuffer buffer)
-    buffer.rewind()
-    buffer
-  }
-
-  def byteBuffer(bytes: Byte*): ByteBuffer = {
-    val buffer = BufferUtils.createByteBuffer(bytes.length)
-    bytes foreach (buffer put _)
-    buffer.rewind()
-    buffer
-  }
 
   def createVBO(): Unit = {
     val verticesBuffer = vertexBuffer(
