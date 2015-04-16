@@ -20,7 +20,7 @@ object Errors {
   def throwIfGlError(msg: String) = {
     val errorVal = glGetError
     if (errorVal != GL_NO_ERROR)
-      throw new GLException(msg)
+      throw new GLException(msg, errorVal)
   }
 }
 

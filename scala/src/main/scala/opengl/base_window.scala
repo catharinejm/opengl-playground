@@ -54,6 +54,7 @@ trait BaseWindow {
       throw new RuntimeException("Failed to create the GLFW window!")
 
     glfwSetKeyCallback(window, keyCallback)
+    setCallbacks(window)
 
     val vidmode = glfwGetVideoMode(glfwGetPrimaryMonitor())
     glfwSetWindowPos(window,
@@ -108,4 +109,5 @@ trait BaseWindow {
   def setup(): Unit = {}
   def cleanup(): Unit = {}
   def windowHints(): Unit = {}
+  def setCallbacks(window: GLFWWindow): Unit = {}
 }

@@ -3,10 +3,12 @@ package opengl.book
 import java.nio.{ByteBuffer, IntBuffer, FloatBuffer}
 
 import org.lwjgl.BufferUtils
+import org.lwjgl.opengl.GL20._
 
 import breeze.linalg._
 import breeze.numerics._
 
+import opengl._
 import opengl.Errors._
 
 object Matrix16 {
@@ -102,7 +104,7 @@ object Matrix16 {
 
 object Utils {
   def loadShader(filename: String, shaderType: Int): Int = {
-    val source = io.File(filename).slurp
+    val source = io.Source.fromFile(filename).mkString
     val shaderId = glCreateShader(shaderType)
     if (shaderId != 0) {
       glShaderSource(shaderId, source)

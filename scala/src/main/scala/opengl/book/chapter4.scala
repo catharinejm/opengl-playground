@@ -2,6 +2,7 @@ package opengl.book
 
 import opengl._
 import Utils._
+import Errors._
 
 import org.lwjgl.{Sys, BufferUtils}
 import org.lwjgl.glfw._
@@ -21,14 +22,17 @@ import breeze.linalg._
 import breeze.numerics._
 
 object Chapter4 extends BaseWindow {
-  val width = 800
-  val height = 600
+  var width = 800
+  var height = 600
 
   var projectionMatrixUniformLocation = 0
   var viewMatrixUniformLocation = 0
   var modelMatrixUniformLocation = 0
   var bufferIds = Array(0,0,0)
-  var shaderIds = Array(0,0,0)
+
+  var programId = 0
+  var fragmentShaderId = 0
+  var vertexShaderId = 0
 
   var projectionMatrix = Matrix16.Identity
   var viewMatrix = Matrix16.Identity
@@ -38,8 +42,8 @@ object Chapter4 extends BaseWindow {
   val viewMatrixBuffer = Matrix16.initBuffer(viewMatrix)
   val modelMatrixBuffer = Matrix16.initBuffer(modelMatrix)
 
-  var cubeRotation = 0f
-  var lastTime = 0.0
+  var cubeRotation = 0.0
+  var lastTime = -1.0
 
   override def windowHints(): Unit = {
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
@@ -61,7 +65,33 @@ object Chapter4 extends BaseWindow {
     glFrontFace(GL_CCW)
     throwIfGlError("Could not set OpenGL culling options")
 
+    viewMatrix = Matrix16.translate(viewMatrix, 0, 0, -2)
+    Matrix16.fillBuffer(viewMatrix, viewMatrixBuffer)
+
     createCube()
+  }
+
+  override def cleanup(): Unit = {
+    destroyCube()
+  }
+
+  override def setCallbacks(window: GLFWWindow): Unit = {
+    glfwSetWindowSizeCallback(window, new GLFWWindowSizeCallback {
+      override def invoke(window: GLFWWindow, w: Int, h: Int): Unit = {
+        width = w
+        height = h
+        glViewport(0, 0, width, height)
+        Matrix16.fillBuffer(Matrix16.createProjectionMatrix(
+          60,
+          width.asInstanceOf[Float] / height,
+          1.0f,
+          100.0f
+        ), projectionMatrixBuffer)
+        glUseProgram(programId)
+        glUniformMatrix4fv(projectionMatrixUniformLocation, true, projectionMatrixBuffer)
+        glUseProgram(0)
+      }
+    })
   }
 
   def createCube(): Unit = {
@@ -85,19 +115,20 @@ object Chapter4 extends BaseWindow {
       7,5,6,  7,4,5
     )
 
-    shaderIds(0) = glCreateProgram()
+    programId = glCreateProgram()
     throwIfGlError("Could not create the shader program")
-    shaderIds(1) = loadShader("SimpleShader.fragment.glsl", GL_FRAGMENT_SHADER)
-    shaderIds(2) = loadShader("SimpleShader.vertex.glsl", GL_VERTEX_SHADER)
-    glAttachShader(shaderIds(0), shaderIds(1))
-    glAttachShader(shaderIds(0), shaderIds(1))
+    val shaderPath = "./src/main/scala/opengl/book"
+    fragmentShaderId = loadShader(s"$shaderPath/SimpleShader.fragment.glsl", GL_FRAGMENT_SHADER)
+    vertexShaderId = loadShader(s"$shaderPath/SimpleShader.vertex.glsl", GL_VERTEX_SHADER)
+    glAttachShader(programId, fragmentShaderId)
+    glAttachShader(programId, vertexShaderId)
 
-    glLinkProgram(shaderIds(0))
+    glLinkProgram(programId)
     throwIfGlError("Could not link the shader program")
 
-    modelMatrixUniformLocation = glGetUniformLocation(shaderIds(0), "ModelMatrix")
-    viewMatrixUniformLocation = glGetUniformLocation(shaderIds(0), "ViewMatrix")
-    projectionMatrixUniformLocation = glGetUniformLocation(shaderIds(0), "ProjectionMatrix")
+    modelMatrixUniformLocation = glGetUniformLocation(programId, "ModelMatrix")
+    viewMatrixUniformLocation = glGetUniformLocation(programId, "ViewMatrix")
+    projectionMatrixUniformLocation = glGetUniformLocation(programId, "ProjectionMatrix")
     throwIfGlError("Could not get shader uniform locations")
 
     bufferIds(0) = glGenVertexArrays()
@@ -105,8 +136,8 @@ object Chapter4 extends BaseWindow {
     glBindVertexArray(bufferIds(0))
     throwIfGlError("Could not bind VAO")
 
-    glEnableVertexAttribArray(0);
-    glEnableVertexAttribArray(1);
+    glEnableVertexAttribArray(0)
+    glEnableVertexAttribArray(1)
     throwIfGlError("Could not enable vertex attributes")
 
     bufferIds(1) = glGenBuffers()
@@ -128,11 +159,11 @@ object Chapter4 extends BaseWindow {
   }
 
   def destroyCube(): Unit = {
-    glDetachShader(shaderIds(0), shaderIds(1))
-    glDetachShader(shaderIds(0), shaderIds(2))
-    glDeleteShader(shaderIds(1))
-    glDeleteShader(shaderIds(2))
-    glDeleteProgram(shaderIds(0))
+    glDetachShader(programId, fragmentShaderId)
+    glDetachShader(programId, vertexShaderId)
+    glDeleteShader(fragmentShaderId)
+    glDeleteShader(vertexShaderId)
+    glDeleteProgram(programId)
     throwIfGlError("Could not destroy the shaders")
 
     glDeleteBuffers(bufferIds(1))
@@ -142,22 +173,23 @@ object Chapter4 extends BaseWindow {
   }
 
   def drawCube(): Unit = {
-    var cubeAngle: Float = 0
-    var now = glfwGetTime()
-    if (lastTime == 0.0)
+    val now = glfwGetTime()
+    if (lastTime < 0)
       lastTime = now
 
-    cubeRotation += 45.0f * (now - lastTime)
-    cubeAngle = math.toRadians(cubeRotation)
+    cubeRotation += 45.0 * (now - lastTime)
+    val cubeAngle = toRadians(cubeRotation).asInstanceOf[Float]
     lastTime = now
 
     modelMatrix = Matrix16.rotateAboutX(Matrix16.Identity, cubeAngle)
     modelMatrix = Matrix16.rotateAboutY(modelMatrix, cubeAngle)
 
+    glUseProgram(programId)
     Matrix16.fillBuffer(modelMatrix, modelMatrixBuffer)
-    glUniformMatrix4fv(modelMatrixUniformLocation, false, modelMatrixBuffer)
-    glUniformMatrix4fv(viewMatrixUniformLocation, false, viewMatrixBuffer)
-    throwIfGlError("Could not set the shader uniforms")
+    glUniformMatrix4fv(modelMatrixUniformLocation, true, modelMatrixBuffer)
+    throwIfGlError("Could not set the model matrix uniform")
+    glUniformMatrix4fv(viewMatrixUniformLocation, true, viewMatrixBuffer)
+    throwIfGlError("Could not set the view matrix uniform")
 
     glBindVertexArray(bufferIds(0))
     throwIfGlError("Could not bind the VAO for drawing")
@@ -167,5 +199,10 @@ object Chapter4 extends BaseWindow {
 
     glBindVertexArray(0)
     glUseProgram(0)
+  }
+
+  def loopBody(fbWidth: Int, fbHeight: Int): Unit = {
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+    drawCube()
   }
 }
