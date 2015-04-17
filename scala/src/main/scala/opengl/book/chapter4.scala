@@ -1,5 +1,7 @@
 package opengl.book
 
+import math._
+
 import opengl._
 import Utils._
 import Errors._
@@ -18,9 +20,6 @@ import org.lwjgl.opengl.GL20._
 import org.lwjgl.opengl.GL30._
 import org.lwjgl.system.MemoryUtil._
 
-import breeze.linalg._
-import breeze.numerics._
-
 object Chapter4 extends BaseWindow {
   var width = 800
   var height = 600
@@ -34,7 +33,12 @@ object Chapter4 extends BaseWindow {
   var fragmentShaderId = 0
   var vertexShaderId = 0
 
-  var projectionMatrix = Matrix16.Identity
+  var projectionMatrix = Matrix16.createProjectionMatrix(
+    60,
+    width.asInstanceOf[Float] / height,
+    1.0f,
+    100.0f
+  )
   var viewMatrix = Matrix16.Identity
   var modelMatrix = Matrix16.Identity
 
@@ -52,6 +56,20 @@ object Chapter4 extends BaseWindow {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
   }
 
+  def printMatrix(name: String, m: Array[Float]): Unit = {
+    println(name)
+    for {
+      i <- 0 to 3
+      val off = i*4
+      j <- 0 to 3
+    } {
+      print(s"${m(off+j)} ")
+      if (j == 3)
+        println()
+    }
+    println()
+  }
+
   override def setup(): Unit = {
     glGetError()
     glClearColor(0,0,0,0)
@@ -67,6 +85,7 @@ object Chapter4 extends BaseWindow {
 
     viewMatrix = Matrix16.translate(viewMatrix, 0, 0, -2)
     Matrix16.fillBuffer(viewMatrix, viewMatrixBuffer)
+    printMatrix("ViewMatrix", viewMatrix)
 
     createCube()
   }
@@ -181,8 +200,8 @@ object Chapter4 extends BaseWindow {
     val cubeAngle = toRadians(cubeRotation).asInstanceOf[Float]
     lastTime = now
 
-    modelMatrix = Matrix16.rotateAboutX(Matrix16.Identity, cubeAngle)
-    modelMatrix = Matrix16.rotateAboutY(modelMatrix, cubeAngle)
+    modelMatrix = Matrix16.rotateAboutY(Matrix16.Identity, cubeAngle)
+    modelMatrix = Matrix16.rotateAboutX(modelMatrix, cubeAngle)
 
     glUseProgram(programId)
     Matrix16.fillBuffer(modelMatrix, modelMatrixBuffer)
@@ -199,6 +218,12 @@ object Chapter4 extends BaseWindow {
 
     glBindVertexArray(0)
     glUseProgram(0)
+  }
+
+  override def periodicPrint(): Unit = {
+    printMatrix("ViewMatrix", viewMatrix)
+    printMatrix("ModelMatrix", modelMatrix)
+    printMatrix("ProjectionMatrix", projectionMatrix)
   }
 
   def loopBody(fbWidth: Int, fbHeight: Int): Unit = {

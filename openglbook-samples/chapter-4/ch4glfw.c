@@ -31,10 +31,16 @@ clock_t LastTime = 0;
 
 
 void ResizeFunction(GLFWwindow*, int, int);
-void TimerFunction(int);
 void CreateCube(void);
 void DestroyCube(void);
 void DrawCube(void);
+
+void PrintMatrix(const char *name, Matrix *m) {
+    printf("%s\n", name);
+    for (int i = 0; i < 4; i++)
+        printf("%.4f %.4f %.4f %.4f\n", m->m[i*4], m->m[i*4+1], m->m[1*4+2], m->m[i*4+3]);
+    printf("\n");
+}
 
 static void error_callback(int error, const char *desc) {
     fputs(desc, stderr);
@@ -135,6 +141,8 @@ int main(void) {
     ViewMatrix = IDENTITY_MATRIX;
     TranslateMatrix(&ViewMatrix, 0, 0, -2);
 
+    PrintMatrix("ViewMatrix", &ViewMatrix);
+
     CreateCube();
     
     double lastTime = glfwGetTime();
@@ -151,6 +159,10 @@ int main(void) {
             glfwSetWindowTitle(window, title);
             lastTime += updateInterval;
             numFrames = 0;
+
+            PrintMatrix("ViewMatrix", &ViewMatrix);
+            PrintMatrix("ModelMatrix", &ModelMatrix);
+            PrintMatrix("ProjectionMatrix", &ProjectionMatrix);
         }
         int fbWid, fbHt;
         float ratio;

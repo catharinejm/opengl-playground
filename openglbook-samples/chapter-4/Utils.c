@@ -46,7 +46,7 @@ void ScaleMatrix(Matrix* m, float x, float y, float z)
   scale.m[5] = y;
   scale.m[10] = z;
 
-  memcpy(m->m, MultiplyMatrices(m, &scale).m, sizeof(m->m));
+  memcpy(m->m, &MultiplyMatrices(m, &scale).m[0], sizeof(m->m));
 }
 
 void TranslateMatrix(Matrix* m, float x, float y, float z)
@@ -57,7 +57,7 @@ void TranslateMatrix(Matrix* m, float x, float y, float z)
   translation.m[13] = y;
   translation.m[14] = z;
 
-  memcpy(m->m, MultiplyMatrices(m, &translation).m, sizeof(m->m));
+  memcpy(m->m, &MultiplyMatrices(m, &translation).m[0], sizeof(m->m));
 }
 
 void RotateAboutX(Matrix* m, float angle)
@@ -71,7 +71,7 @@ void RotateAboutX(Matrix* m, float angle)
   rotation.m[9] = sine;
   rotation.m[10] = cosine;
 
-  memcpy(m->m, MultiplyMatrices(m, &rotation).m, sizeof(m->m));
+  memcpy(m->m, &MultiplyMatrices(m, &rotation).m[0], sizeof(m->m));
 }
 
 void RotateAboutY(Matrix* m, float angle)
@@ -85,7 +85,7 @@ void RotateAboutY(Matrix* m, float angle)
   rotation.m[2] = -sine;
   rotation.m[10] = cosine;
 
-  memcpy(m->m, MultiplyMatrices(m, &rotation).m, sizeof(m->m));
+  memcpy(m->m, &MultiplyMatrices(m, &rotation).m[0], sizeof(m->m));
 }
 
 void RotateAboutZ(Matrix* m, float angle)
@@ -99,7 +99,7 @@ void RotateAboutZ(Matrix* m, float angle)
   rotation.m[4] = sine;
   rotation.m[5] = cosine;
 
-  memcpy(m->m, MultiplyMatrices(m, &rotation).m, sizeof(m->m));
+  memcpy(m->m, &MultiplyMatrices(m, &rotation).m[0], sizeof(m->m));
 }
 
 Matrix CreateProjectionMatrix(
@@ -141,7 +141,7 @@ GLuint LoadShader(const char* filename, GLenum shader_type)
   GLuint shader_id = 0;
   FILE* file;
   long file_size = -1;
-  char* glsl_source;
+  GLchar* glsl_source;
 
   if (NULL != (file = fopen(filename, "rb")) &&
     0 == fseek(file, 0, SEEK_END) &&
@@ -157,7 +157,7 @@ GLuint LoadShader(const char* filename, GLenum shader_type)
 
         if (0 != (shader_id = glCreateShader(shader_type)))
         {
-          glShaderSource(shader_id, 1, &glsl_source, NULL);
+            glShaderSource(shader_id, 1, (const GLchar**)&glsl_source, NULL);
           glCompileShader(shader_id);
           ExitOnGLError("Could not compile a shader");
         }
@@ -170,7 +170,7 @@ GLuint LoadShader(const char* filename, GLenum shader_type)
       free(glsl_source);
     }
     else
-      fprintf(stderr, "ERROR: Could not allocate %i bytes.\n", file_size);
+      fprintf(stderr, "ERROR: Could not allocate %li bytes.\n", file_size);
 
     fclose(file);
   }

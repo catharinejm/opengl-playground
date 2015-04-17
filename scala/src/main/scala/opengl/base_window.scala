@@ -93,6 +93,7 @@ trait BaseWindow {
         glfwSetWindowTitle(window, s"ms/f: $msPerFrame, FPS: ${1/msPerFrame*1000.0}")
         lastTime += updateInterval
         numFrames = 0
+        periodicPrint()
       }
 
       val (fbWid, fbHt) = getFBDims(window)
@@ -110,4 +111,5 @@ trait BaseWindow {
   def cleanup(): Unit = {}
   def windowHints(): Unit = {}
   def setCallbacks(window: GLFWWindow): Unit = {}
+  def periodicPrint(): Unit = {}
 }

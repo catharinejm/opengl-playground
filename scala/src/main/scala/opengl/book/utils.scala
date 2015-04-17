@@ -5,97 +5,124 @@ import java.nio.{ByteBuffer, IntBuffer, FloatBuffer}
 import org.lwjgl.BufferUtils
 import org.lwjgl.opengl.GL20._
 
-import breeze.linalg._
-import breeze.numerics._
-
 import opengl._
 import opengl.Errors._
 
+import math._
+
 object Matrix16 {
-  def Identity = DenseMatrix.eye[Float](4)
-  def Zeros = DenseMatrix.zeros[Float](4,4)
+  def Identity = Array[Float](
+    1, 0, 0, 0,
+    0, 1, 0, 0,
+    0, 0, 1, 0,
+    0, 0, 0, 1
+  )
+  def Zeros = Array[Float](
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 0, 0, 0
+  )
 
-  def cotan(n: Float) = 1.0f / tan(n)
+  implicit def dToF(d: Double): Float = d.asInstanceOf[Float]
 
-  def scale(m: DenseMatrix[Float], x: Float, y: Float, z: Float): DenseMatrix[Float] = {
+  def cotan(n: Float) = 1.0f / math.tan(n).asInstanceOf[Float]
+
+  def multiply(m1: Array[Float], m2: Array[Float]) = {
+    val out = Identity
+    for {
+      row <- 0 to 3
+      val rowOff = row*4
+      col <- 0 to 3
+    } {
+      out(rowOff + col) =
+        m1(rowOff + 0) * m2(col + 0) +
+          m1(rowOff + 1) * m2(col + 4) +
+          m1(rowOff + 2) * m2(col + 8) +
+          m1(rowOff + 3) * m2(col + 12)
+    }
+    out
+  }
+
+  def scale(m: Array[Float], x: Float, y: Float, z: Float): Array[Float] = {
     val scaleM = Identity
-    scaleM(0,0) = x
-    scaleM(1,1) = y
-    scaleM(2,2) = z
-    m :* scaleM
+    scaleM(0) = x
+    scaleM(5) = y
+    scaleM(10) = z
+    multiply(m, scaleM)
   }
 
-  def translate(m: DenseMatrix[Float], x: Float, y: Float, z: Float): DenseMatrix[Float] = {
+  def translate(m: Array[Float], x: Float, y: Float, z: Float): Array[Float] = {
     val trans = Identity
-    trans(3,0) = x
-    trans(3,1) = y
-    trans(3,2) = z
-    m :* trans
+    trans(12) = x
+    trans(13) = y
+    trans(14) = z
+    multiply(m, trans)
   }
 
-  def rotateAboutX(m: DenseMatrix[Float], angle: Float): DenseMatrix[Float] = {
+  def rotateAboutX(m: Array[Float], angle: Float): Array[Float] = {
     val rotation = Identity
     val sine: Float = sin(angle)
     val cosine: Float = cos(angle)
 
-    rotation(1,1) = cosine
-    rotation(1,2) = -sine
-    rotation(2,1) = sine
-    rotation(2,2) = cosine
+    rotation(5) = cosine
+    rotation(6) = -sine
+    rotation(9) = sine
+    rotation(10) = cosine
 
-    m :* rotation
+    multiply(m, rotation)
   }
 
-  def rotateAboutY(m: DenseMatrix[Float], angle: Float): DenseMatrix[Float] = {
+  def rotateAboutY(m: Array[Float], angle: Float): Array[Float] = {
     val rotation = Identity
     val sine: Float = sin(angle)
     val cosine: Float = cos(angle)
 
-    rotation(0,0) = cosine
-    rotation(2,0) = sine
-    rotation(0,2) = -sine
-    rotation(2,2) = cosine
+    rotation(0) = cosine
+    rotation(8) = sine
+    rotation(2) = -sine
+    rotation(10) = cosine
 
-    m :* rotation
+    multiply(m, rotation)
   }
 
-  def rotateAboutZ(m: DenseMatrix[Float], angle: Float): DenseMatrix[Float] = {
+  def rotateAboutZ(m: Array[Float], angle: Float): Array[Float] = {
     val rotation = Identity
     val sine: Float = sin(angle)
     val cosine: Float = cos(angle)
 
-    rotation(0,0) = cosine
-    rotation(0,1) = -sine
-    rotation(1,0) = sine
-    rotation(1,1) = cosine
+    rotation(0) = cosine
+    rotation(1) = -sine
+    rotation(4) = sine
+    rotation(5) = cosine
 
-    m :* rotation
+    multiply(m, rotation)
   }
 
   def createProjectionMatrix(
     fovy: Float, aspect: Float, nearPlane: Float, farPlane: Float
-  ): DenseMatrix[Float] = {
-    val out = DenseMatrix.zeros[Float](4,4)
+  ): Array[Float] = {
+    val out = Zeros
     val yScale = cotan(toRadians(fovy/2))
     val xScale = yScale / aspect
     val frustumLen = farPlane - nearPlane
 
-    out(0,0) = xScale
-    out(1,1) = yScale
-    out(2,2) = -((farPlane + nearPlane) / frustumLen)
-    out(2,3) = -1
-    out(3,2) = -((2 * nearPlane * farPlane) / frustumLen)
+    out(0) = xScale
+    out(5) = yScale
+    out(10) = -((farPlane + nearPlane) / frustumLen)
+    out(11) = -1
+    out(14) = -((2 * nearPlane * farPlane) / frustumLen)
 
     out
   }
 
-  def fillBuffer(m: DenseMatrix[Float], buf: FloatBuffer): Unit = {
+  def fillBuffer(m: Array[Float], buf: FloatBuffer): Unit = {
     buf.mark()
-    m.values foreach (buf put _)
+    buf.put(m)
     buf.reset()
   }
 
-  def initBuffer(m: DenseMatrix[Float]): FloatBuffer = {
+  def initBuffer(m: Array[Float]): FloatBuffer = {
     val b = BufferUtils.createFloatBuffer(16)
     fillBuffer(m, b)
     b
