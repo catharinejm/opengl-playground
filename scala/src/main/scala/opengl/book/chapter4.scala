@@ -42,10 +42,6 @@ object Chapter4 extends BaseWindow {
   var viewMatrix = Matrix16.Identity
   var modelMatrix = Matrix16.Identity
 
-  val projectionMatrixBuffer = Matrix16.initBuffer(projectionMatrix)
-  val viewMatrixBuffer = Matrix16.initBuffer(viewMatrix)
-  val modelMatrixBuffer = Matrix16.initBuffer(modelMatrix)
-
   var cubeRotation = 0.0
   var lastTime = -1.0
 
@@ -56,14 +52,14 @@ object Chapter4 extends BaseWindow {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
   }
 
-  def printMatrix(name: String, m: Array[Float]): Unit = {
+  def printMatrix(name: String, m: java.nio.FloatBuffer): Unit = {
     println(name)
     for {
       i <- 0 to 3
       val off = i*4
       j <- 0 to 3
     } {
-      print(s"${m(off+j)} ")
+      print(s"${m.get(off+j)} ")
       if (j == 3)
         println()
     }
@@ -83,8 +79,7 @@ object Chapter4 extends BaseWindow {
     glFrontFace(GL_CCW)
     throwIfGlError("Could not set OpenGL culling options")
 
-    viewMatrix = Matrix16.translate(viewMatrix, 0, 0, -2)
-    Matrix16.fillBuffer(viewMatrix, viewMatrixBuffer)
+    Matrix16.translate(viewMatrix, 0, 0, -2)
     printMatrix("ViewMatrix", viewMatrix)
 
     createCube()
@@ -100,14 +95,15 @@ object Chapter4 extends BaseWindow {
         width = w
         height = h
         glViewport(0, 0, width, height)
-        Matrix16.fillBuffer(Matrix16.createProjectionMatrix(
+        projectionMatrix.put(Matrix16.createProjectionMatrix(
           60,
           width.asInstanceOf[Float] / height,
           1.0f,
           100.0f
-        ), projectionMatrixBuffer)
+        ))
+        projectionMatrix.rewind()
         glUseProgram(programId)
-        glUniformMatrix4fv(projectionMatrixUniformLocation, true, projectionMatrixBuffer)
+        glUniformMatrix4fv(projectionMatrixUniformLocation, false, projectionMatrix)
         glUseProgram(0)
       }
     })
@@ -200,15 +196,17 @@ object Chapter4 extends BaseWindow {
     val cubeAngle = toRadians(cubeRotation).asInstanceOf[Float]
     lastTime = now
 
-    modelMatrix = Matrix16.rotateAboutY(Matrix16.Identity, cubeAngle)
-    modelMatrix = Matrix16.rotateAboutX(modelMatrix, cubeAngle)
+    modelMatrix = Matrix16.Identity
+    Matrix16.rotateAboutY(modelMatrix, cubeAngle)
+    Matrix16.rotateAboutX(modelMatrix, cubeAngle)
 
     glUseProgram(programId)
-    Matrix16.fillBuffer(modelMatrix, modelMatrixBuffer)
-    glUniformMatrix4fv(modelMatrixUniformLocation, true, modelMatrixBuffer)
+    glUniformMatrix4fv(modelMatrixUniformLocation, false, modelMatrix)
     throwIfGlError("Could not set the model matrix uniform")
-    glUniformMatrix4fv(viewMatrixUniformLocation, true, viewMatrixBuffer)
+    glUniformMatrix4fv(viewMatrixUniformLocation, false, viewMatrix)
     throwIfGlError("Could not set the view matrix uniform")
+    glUniformMatrix4fv(projectionMatrixUniformLocation, false, projectionMatrix)
+    throwIfGlError("Could not set the projection matrix uniform")
 
     glBindVertexArray(bufferIds(0))
     throwIfGlError("Could not bind the VAO for drawing")

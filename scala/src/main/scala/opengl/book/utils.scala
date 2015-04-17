@@ -11,121 +11,117 @@ import opengl.Errors._
 import math._
 
 object Matrix16 {
-  def Identity = Array[Float](
-    1, 0, 0, 0,
-    0, 1, 0, 0,
-    0, 0, 1, 0,
-    0, 0, 0, 1
-  )
-  def Zeros = Array[Float](
-    0, 0, 0, 0,
-    0, 0, 0, 0,
-    0, 0, 0, 0,
-    0, 0, 0, 0
-  )
+  def Identity = {
+    val b = BufferUtils.createFloatBuffer(16)
+    b.put(0, 1f)
+    b.put(5, 1f)
+    b.put(10, 1f)
+    b.put(15, 1f)
+    b
+  }
+  def Zeros = {
+    val b = BufferUtils.createFloatBuffer(16)
+    BufferUtils.zeroBuffer(b)
+    b.rewind()
+    b
+  }
 
   implicit def dToF(d: Double): Float = d.asInstanceOf[Float]
 
   def cotan(n: Float) = 1.0f / math.tan(n).asInstanceOf[Float]
 
-  def multiply(m1: Array[Float], m2: Array[Float]) = {
+  def multiply(m1: FloatBuffer, m2: FloatBuffer) = {
     val out = Identity
     for {
       row <- 0 to 3
       val rowOff = row*4
       col <- 0 to 3
     } {
-      out(rowOff + col) =
-        m1(rowOff + 0) * m2(col + 0) +
-          m1(rowOff + 1) * m2(col + 4) +
-          m1(rowOff + 2) * m2(col + 8) +
-          m1(rowOff + 3) * m2(col + 12)
+      out.put(rowOff + col,
+        m1.get(rowOff + 0) * m2.get(col + 0) +
+          m1.get(rowOff + 1) * m2.get(col + 4) +
+          m1.get(rowOff + 2) * m2.get(col + 8) +
+          m1.get(rowOff + 3) * m2.get(col + 12)
+      )
     }
     out
   }
 
-  def scale(m: Array[Float], x: Float, y: Float, z: Float): Array[Float] = {
+  def scale(m: FloatBuffer, x: Float, y: Float, z: Float): Unit = {
     val scaleM = Identity
-    scaleM(0) = x
-    scaleM(5) = y
-    scaleM(10) = z
-    multiply(m, scaleM)
+    scaleM.put(0, x)
+    scaleM.put(5, y)
+    scaleM.put(10, z)
+    m.put(multiply(m, scaleM))
+    m.rewind()
   }
 
-  def translate(m: Array[Float], x: Float, y: Float, z: Float): Array[Float] = {
+  def translate(m: FloatBuffer, x: Float, y: Float, z: Float): Unit = {
     val trans = Identity
-    trans(12) = x
-    trans(13) = y
-    trans(14) = z
-    multiply(m, trans)
+    trans.put(12, x)
+    trans.put(13, y)
+    trans.put(14, z)
+    m.put(multiply(m, trans))
+    m.rewind()
   }
 
-  def rotateAboutX(m: Array[Float], angle: Float): Array[Float] = {
+  def rotateAboutX(m: FloatBuffer, angle: Float): Unit = {
     val rotation = Identity
     val sine: Float = sin(angle)
     val cosine: Float = cos(angle)
 
-    rotation(5) = cosine
-    rotation(6) = -sine
-    rotation(9) = sine
-    rotation(10) = cosine
+    rotation.put(5, cosine)
+    rotation.put(6, -sine)
+    rotation.put(9, sine)
+    rotation.put(10, cosine)
 
-    multiply(m, rotation)
+    m.put(multiply(m, rotation))
+    m.rewind()
   }
 
-  def rotateAboutY(m: Array[Float], angle: Float): Array[Float] = {
+  def rotateAboutY(m: FloatBuffer, angle: Float): Unit = {
     val rotation = Identity
     val sine: Float = sin(angle)
     val cosine: Float = cos(angle)
 
-    rotation(0) = cosine
-    rotation(8) = sine
-    rotation(2) = -sine
-    rotation(10) = cosine
+    rotation.put(0, cosine)
+    rotation.put(8, sine)
+    rotation.put(2, -sine)
+    rotation.put(10, cosine)
 
-    multiply(m, rotation)
+    m.put(multiply(m, rotation))
+    m.rewind()
   }
 
-  def rotateAboutZ(m: Array[Float], angle: Float): Array[Float] = {
+  def rotateAboutZ(m: FloatBuffer, angle: Float): Unit = {
     val rotation = Identity
     val sine: Float = sin(angle)
     val cosine: Float = cos(angle)
 
-    rotation(0) = cosine
-    rotation(1) = -sine
-    rotation(4) = sine
-    rotation(5) = cosine
+    rotation.put(0, cosine)
+    rotation.put(1, -sine)
+    rotation.put(4, sine)
+    rotation.put(5, cosine)
 
-    multiply(m, rotation)
+    m.put(multiply(m, rotation))
+    m.rewind()
   }
 
   def createProjectionMatrix(
     fovy: Float, aspect: Float, nearPlane: Float, farPlane: Float
-  ): Array[Float] = {
+  ): FloatBuffer = {
     val out = Zeros
     val yScale = cotan(toRadians(fovy/2))
     val xScale = yScale / aspect
     val frustumLen = farPlane - nearPlane
 
-    out(0) = xScale
-    out(5) = yScale
-    out(10) = -((farPlane + nearPlane) / frustumLen)
-    out(11) = -1
-    out(14) = -((2 * nearPlane * farPlane) / frustumLen)
+    out.put(0, xScale)
+    out.put(5, yScale)
+    out.put(10, -((farPlane + nearPlane) / frustumLen))
+    out.put(11, -1)
+    out.put(14, -((2 * nearPlane * farPlane) / frustumLen))
 
     out
-  }
-
-  def fillBuffer(m: Array[Float], buf: FloatBuffer): Unit = {
-    buf.mark()
-    buf.put(m)
-    buf.reset()
-  }
-
-  def initBuffer(m: Array[Float]): FloatBuffer = {
-    val b = BufferUtils.createFloatBuffer(16)
-    fillBuffer(m, b)
-    b
   }
 }
 
