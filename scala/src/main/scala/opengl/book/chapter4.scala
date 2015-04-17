@@ -107,7 +107,7 @@ object Chapter4 extends BaseWindow {
           100.0f
         ), projectionMatrixBuffer)
         glUseProgram(programId)
-        glUniformMatrix4fv(projectionMatrixUniformLocation, true, projectionMatrixBuffer)
+        glUniformMatrix4fv(projectionMatrixUniformLocation, false, projectionMatrixBuffer)
         glUseProgram(0)
       }
     })
@@ -205,10 +205,12 @@ object Chapter4 extends BaseWindow {
 
     glUseProgram(programId)
     Matrix16.fillBuffer(modelMatrix, modelMatrixBuffer)
-    glUniformMatrix4fv(modelMatrixUniformLocation, true, modelMatrixBuffer)
+    glUniformMatrix4fv(modelMatrixUniformLocation, false, modelMatrixBuffer)
     throwIfGlError("Could not set the model matrix uniform")
-    glUniformMatrix4fv(viewMatrixUniformLocation, true, viewMatrixBuffer)
+    glUniformMatrix4fv(viewMatrixUniformLocation, false, viewMatrixBuffer)
     throwIfGlError("Could not set the view matrix uniform")
+    glUniformMatrix4fv(projectionMatrixUniformLocation, false, projectionMatrixBuffer)
+    throwIfGlError("Could not set the projection matrix uniform")
 
     glBindVertexArray(bufferIds(0))
     throwIfGlError("Could not bind the VAO for drawing")
