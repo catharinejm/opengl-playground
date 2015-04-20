@@ -1,9 +1,15 @@
+{-# LANGUAGE NamedFieldPuns #-}
+
 module Util where
 
+
+import Control.Applicative
 import Control.Monad
 import qualified Graphics.UI.GLFW as GLFW
 import System.Exit
 import System.IO
+
+import qualified Graphics.GLUtil as U
 
 errorCallback :: GLFW.ErrorCallback
 errorCallback _ = hPutStrLn stderr
@@ -19,11 +25,21 @@ initialize title = do
   if not successfulInit then exitFailure else do
     GLFW.windowHint $ GLFW.WindowHint'OpenGLDebugContext True
     GLFW.windowHint $ GLFW.WindowHint'DepthBits 16
-    mw <- GLFW.createWindow 640 480 title Nothing Nothing
+    GLFW.windowHint $ GLFW.WindowHint'OpenGLForwardCompat True
+    GLFW.windowHint $ GLFW.WindowHint'OpenGLProfile GLFW.OpenGLProfile'Core
+    GLFW.windowHint $ GLFW.WindowHint'ContextVersionMajor 4
+    GLFW.windowHint $ GLFW.WindowHint'ContextVersionMinor 1
+    mw <- GLFW.createWindow 800 600 title Nothing Nothing
     case mw of
      Nothing -> GLFW.terminate >> exitFailure
      Just window -> do
+       Just mon <- GLFW.getPrimaryMonitor
+       Just videoMode <- GLFW.getVideoMode mon
+       let w = GLFW.videoModeWidth videoMode
+           h = GLFW.videoModeHeight videoMode
+       GLFW.setWindowPos window ((w - 800) `div` 2) ((h - 600) `div` 2)
        GLFW.makeContextCurrent mw
+       GLFW.swapInterval 1
        GLFW.setKeyCallback window (Just keyCallback)
        return window
 

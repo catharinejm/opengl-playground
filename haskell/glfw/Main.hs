@@ -32,7 +32,7 @@ initResources = do
 
 draw :: Program -> GLFW.Window -> IO ()
 draw (Program program attrib buf) win = do
-  GL.clearColor $= GL.Color4 1 1 1 1
+  GL.clearColor $= GL.Color4 0 0 0 1
   GL.clear [GL.ColorBuffer]
   (width, height) <- GLFW.getFramebufferSize win
   GL.viewport $= (GL.Position 0 0, GL.Size (fromIntegral width) (fromIntegral height))
@@ -45,7 +45,15 @@ draw (Program program attrib buf) win = do
   GL.drawArrays GL.Triangles 0 3 -- 3 vertices
   GL.vertexAttribArray attrib $= GL.Disabled
 
-data Program = Program GL.Program GL.AttribLocation GL.BufferObject
+data Program = Program GL.Program MatrixLocs Buffers
+data MatrixLocs = MatrixLocs { projection :: GL.AttribLocation
+                             , view :: GL.AttribLocation
+                             , model :: GL.AttribLocation
+                             }
+data Buffers = Buffers { vao :: GL.BufferObject
+                       , vbo :: GL.BufferObject
+                       , ibo :: GL.BufferObject
+                       }
 
 shaderPath :: FilePath
 shaderPath = "."
