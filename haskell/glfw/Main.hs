@@ -22,15 +22,20 @@ main = do
 
 initResources :: IO Program
 initResources = do
-  -- compile vertex shader
+  GL.clearColor $= GL.Color4 0 0 0 1
+  GL.enable GL.CapDepthTest GL.Enabled
+  GL.depthFunc $= Just GL.Less
+  GL.enable GL.CapCullFace GL.Enabled
+  GL.cullFace $= Just GL.Back
+  GL.frontFace $= GL.CCW
+  -- compile shaders
   vs <- U.loadShader GL.VertexShader $ shaderPath </> "triangle.v.glsl"
   fs <- U.loadShader GL.FragmentShader $ shaderPath </> "triangle.f.glsl"
   p <- U.linkShaderProgram [vs, fs]
-  GL.blend $= GL.Enabled
-  GL.blendFunc $= (GL.SrcAlpha, GL.OneMinusSrcAlpha)
   vao <- U.makeVAO $ do
     vbo <- U.makeBuffer GL.ArrayBuffer vertices
-    GL.vertexAttribPointer (GL.AttribLocation 0) $= (GL.ToFloat, GL.VertexArrayDescriptor 4 GL.Float (4*8) U.offset0)
+    GL.vertexAttribPointer (GL.AttribLocation 0) $=
+      (GL.ToFloat, GL.VertexArrayDescriptor 4 GL.Float (4*8) U.offset0)
     GL.vertexAttribPointer (GL.AttribLocation 1) $=
       (GL.ToFloat, GL.VertexArrayDescriptor 4 GL.Float (4*8) $ U.offsetPtr (4*4))
     ibo <- U.makeBuffer GL.ElementArrayBuffer indices
@@ -38,13 +43,18 @@ initResources = do
   (Program p vao) <$> loadAttribs p
   where
     loadAttribs p = do
-      proj <- GL.get (GL.attribLocation p "ProjectionMatrix")
-      v <- GL.get (GL.attribLocation p "ViewMatrix")
-      mod <- GL.get (GL.attribLocation p "ModelMatrix")
+      proj <- GL.get (GL.uniformLocation p "ProjectionMatrix")
+      v <- GL.get (GL.uniformLocation p "ViewMatrix")
+      mod <- GL.get (GL.uniformLocation p "ModelMatrix")
       return MatrixLocs { projection = proj
                         , view = v
                         , model = mod
                         }
+
+destroyResources :: Program -> IO ()
+destroyResources prog = do
+  GL.detachShader prog
+
 
 -- draw :: Program -> GLFW.Window -> IO ()
 -- draw (Program program attrib buf) win = do
@@ -62,9 +72,9 @@ initResources = do
 --   GL.vertexAttribArray attrib $= GL.Disabled
 
 data Program = Program GL.Program GL.VertexArrayObject MatrixLocs
-data MatrixLocs = MatrixLocs { projection :: GL.AttribLocation
-                             , view :: GL.AttribLocation
-                             , model :: GL.AttribLocation
+data MatrixLocs = MatrixLocs { projection :: GL.UniformLocation
+                             , view :: GL.UniformLocation
+                             , model :: GL.UniformLocation
                              }
 data Buffers = Buffers { vbo :: GL.BufferObject
                        , ibo :: GL.BufferObject
