@@ -20,6 +20,7 @@ import qualified Util as W
 import Numeric.LinearAlgebra.HMatrix
 import MatrixOps
 import GHC.Float
+import Unsafe.Coerce (unsafeCoerce)
 
 main :: IO ()
 main = do
@@ -30,7 +31,8 @@ main = do
   Just time <- GLFW.getTime
   let projMat = makeProjMatrix 60 (fromIntegral width / fromIntegral height) 1 100
       initialDrawState = DrawState { lastTime = time, cubeRotation = 0, projectionMatrix = projMat }
-  W.mainLoop (evalStateT (draw prog win) initialDrawState) win
+  U.printError
+  -- W.mainLoop (evalStateT (draw prog win) initialDrawState) win
   W.cleanup win
 
 initResources :: IO Program
@@ -40,8 +42,8 @@ initResources = do
   GL.cullFace $= Just GL.Back
   GL.frontFace $= GL.CCW
   -- compile shaders
-  vs <- U.loadShader GL.VertexShader $ shaderPath </> "triangle.v.glsl"
-  fs <- U.loadShader GL.FragmentShader $ shaderPath </> "triangle.f.glsl"
+  vs <- U.loadShader GL.VertexShader $ shaderPath </> "SimpleShader.vertex.glsl"
+  fs <- U.loadShader GL.FragmentShader $ shaderPath </> "SimpleShader.fragment.glsl"
   p <- U.linkShaderProgram [vs, fs]
   vao <- U.makeVAO $ do
     vbo <- U.makeBuffer GL.ArrayBuffer vertices
@@ -83,9 +85,9 @@ draw (Program program vao _ mlocs) win = do
   liftIO $ do GL.clear [GL.ColorBuffer, GL.DepthBuffer]
               GL.currentProgram $= Just program
               let yrot = rotateAboutY (ident 4) angle
-              U.uniformMat (model mlocs) $= (toLists $ rotateAboutX yrot angle)
+              U.uniformMat (model mlocs) $= (glMat $ rotateAboutX yrot angle)
               U.uniformMat (view mlocs) $= viewMatrix
-              U.uniformMat (projection mlocs) $= toLists projectionMatrix
+              U.uniformMat (projection mlocs) $= glMat projectionMatrix
               U.withVAO vao $ do
                 GL.drawElements GL.Triangles 36 GL.UnsignedInt U.offset0
                 
@@ -103,7 +105,12 @@ data MatrixLocs = MatrixLocs { projection :: GL.UniformLocation
                              , model :: GL.UniformLocation
                              }
 
-viewMatrix = toLists $ translate (ident 4) 0 0 (-2)
+toGLList :: [[Float]] -> [[GL.GLfloat]]
+toGLList = unsafeCoerce
+
+glMat = toGLList . toLists 
+
+viewMatrix = glMat $ translate (ident 4) 0 0 (-2)
 
 shaderPath :: FilePath
 shaderPath = "."
