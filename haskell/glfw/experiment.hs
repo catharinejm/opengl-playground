@@ -5,7 +5,8 @@ import System.IO
 import Data.List
 import Data.Functor.Identity
 
-import Control.Monad.State
+import Control.Monad.State.Strict
+import Control.Monad (when, unless)
 
 data Env = Env { pants :: Bool
                , numLegs :: Int
@@ -22,7 +23,9 @@ parse (a:as) | Just pants <- stripPrefix "pants=" a = do
                  parse as
              | Just n <- fmap readInt (stripPrefix "numLegs=" a) = do
                  env <- get
-                 put env {numLegs = n}
+                 when (n == 10) $ do
+                   put env {numLegs = 500}
+                 unless (n == 10) $ put env {numLegs = n}
                  parse as
              | True = parse as
   where

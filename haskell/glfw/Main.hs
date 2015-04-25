@@ -89,26 +89,25 @@ draw prog@(Program program vao _ mlocs) win = do
     state @ DrawState { lastTime, cubeRotation, projectionMatrix, lastWrite } <- get
     Just now <- liftIO GLFW.getTime
     let newRot = cubeRotation + 45.0 * (now - lastTime)
-        angle = (double2Float newRot) * 180.0 / pi
+        angle = (double2Float newRot) * pi / 180.0
         doWrite = now - lastWrite > 2.5
     when doWrite $ do
       put state { lastWrite = lastWrite + 2.5 }
-    liftIO $ do
-      putStrLn $ "now: "++(show now)++" lastWrite: "++(show lastWrite)++" doWrite: "++(show doWrite)
+    state <- get
     put state { lastTime = now, cubeRotation = newRot }
     liftIO $ do GL.clear [GL.ColorBuffer, GL.DepthBuffer]
                 GL.currentProgram $= Just program
                 let yrot = rotateAboutY (ident 4) angle
-                    mod = (glMat $ rotateAboutX yrot angle)
-                    proj = glMat projectionMatrix
-                -- when doWrite $ do
-                --   putStrLn $ "Model Matrix\n"++(show mod)
-                --   putStrLn $ "View Matrix\n"++(show viewMatrix)
-                --   putStrLn $ "Projection Matrix\n"++(show proj)
+                    mod = rotateAboutX yrot angle
+                    proj = projectionMatrix
+                when doWrite $ do
+                  putStrLn $ "Model Matrix\n"++(show mod)
+                  putStrLn $ "View Matrix\n"++(show viewMatrix)
+                  putStrLn $ "Projection Matrix\n"++(show proj)
                 
-                U.uniformMat (model mlocs) $= mod
-                U.uniformMat (view mlocs) $= viewMatrix
-                U.uniformMat (projection mlocs) $= proj
+                U.uniformMat (model mlocs) $= glMat mod
+                U.uniformMat (view mlocs) $= glMat viewMatrix
+                U.uniformMat (projection mlocs) $= glMat proj
                 U.withVAO vao $ do
                   GL.drawElements GL.Triangles 36 GL.UnsignedInt U.offset0
                 GLFW.swapBuffers win
@@ -121,7 +120,7 @@ toGLList = unsafeCoerce
 
 glMat = toGLList . toLists
 
-viewMatrix = glMat $ translate (ident 4) 0 0 (-2)
+viewMatrix = translate (ident 4) 0 0 (-2)
 
 shaderPath :: FilePath
 shaderPath = "."

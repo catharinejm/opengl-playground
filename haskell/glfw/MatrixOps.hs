@@ -59,4 +59,4 @@ makeProjMatrix fovy aspect near far =
     yscale = cotan (fovy / 2)
     xscale = yscale / aspect
     frustum = far - near
-    cotan a = 1.0 / tan (180.0 * a / pi)
+    cotan a = 1.0 / tan (pi * a / 180.0)
