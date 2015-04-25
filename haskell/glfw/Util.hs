@@ -18,8 +18,8 @@ keyCallback :: GLFW.KeyCallback
 keyCallback window key _ action _ = when (key == GLFW.Key'Escape && action == GLFW.KeyState'Pressed) $
                                       GLFW.setWindowShouldClose window True
 
-initialize :: String -> IO GLFW.Window
-initialize title = do
+initialize :: Int -> Int -> String -> IO GLFW.Window
+initialize width height title = do
   GLFW.setErrorCallback $ Just errorCallback
   successfulInit <- GLFW.init
   if not successfulInit then exitFailure else do
@@ -29,7 +29,7 @@ initialize title = do
     GLFW.windowHint $ GLFW.WindowHint'OpenGLProfile GLFW.OpenGLProfile'Core
     GLFW.windowHint $ GLFW.WindowHint'ContextVersionMajor 4
     GLFW.windowHint $ GLFW.WindowHint'ContextVersionMinor 1
-    mw <- GLFW.createWindow 800 600 title Nothing Nothing
+    mw <- GLFW.createWindow width height title Nothing Nothing
     case mw of
      Nothing -> GLFW.terminate >> exitFailure
      Just window -> do
@@ -37,7 +37,7 @@ initialize title = do
        Just videoMode <- GLFW.getVideoMode mon
        let w = GLFW.videoModeWidth videoMode
            h = GLFW.videoModeHeight videoMode
-       GLFW.setWindowPos window ((w - 800) `div` 2) ((h - 600) `div` 2)
+       GLFW.setWindowPos window ((w - width) `div` 2) ((h - height) `div` 2)
        GLFW.makeContextCurrent mw
        GLFW.swapInterval 1
        GLFW.setKeyCallback window (Just keyCallback)

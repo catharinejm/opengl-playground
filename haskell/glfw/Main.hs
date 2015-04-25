@@ -1,9 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
 
 module Main where
 
 import Control.Applicative
 import System.FilePath ((</>))
+import Control.Monad.Trans
+import Control.Monad.State.Strict
 
 import qualified Graphics.Rendering.OpenGL as GL
 import Graphics.Rendering.OpenGL (($=))
@@ -12,20 +17,26 @@ import qualified Graphics.GLUtil as U
 
 import qualified Util as W
 
+import Numeric.LinearAlgebra.HMatrix
+import MatrixOps
+import GHC.Float
+
 main :: IO ()
 main = do
-  putStrLn "hi"
-  -- win <- W.initialize "My first triangle"
-  -- prog <- initResources
-  -- W.mainLoop (draw prog win) win
-  -- W.cleanup win
+  let width = 800
+      height = 600
+  win <- W.initialize width height "My first cube"
+  prog <- initResources
+  Just time <- GLFW.getTime
+  let projMat = makeProjMatrix 60 (fromIntegral width / fromIntegral height) 1 100
+      initialDrawState = DrawState { lastTime = time, cubeRotation = 0, projectionMatrix = projMat }
+  W.mainLoop (evalStateT (draw prog win) initialDrawState) win
+  W.cleanup win
 
 initResources :: IO Program
 initResources = do
   GL.clearColor $= GL.Color4 0 0 0 1
-  GL.enable GL.CapDepthTest GL.Enabled
   GL.depthFunc $= Just GL.Less
-  GL.enable GL.CapCullFace GL.Enabled
   GL.cullFace $= Just GL.Back
   GL.frontFace $= GL.CCW
   -- compile shaders
@@ -40,7 +51,7 @@ initResources = do
       (GL.ToFloat, GL.VertexArrayDescriptor 4 GL.Float (4*8) $ U.offsetPtr (4*4))
     ibo <- U.makeBuffer GL.ElementArrayBuffer indices
     return ()
-  (Program p vao) <$> loadAttribs p
+  (Program p vao (Shaders vs fs)) <$> loadAttribs p
   where
     loadAttribs p = do
       proj <- GL.get (GL.uniformLocation p "ProjectionMatrix")
@@ -52,33 +63,47 @@ initResources = do
                         }
 
 destroyResources :: Program -> IO ()
-destroyResources prog = do
-  GL.detachShader prog
+destroyResources (Program prog vao shaders mlocs) = do
+  GL.detachShader prog $ vertex shaders
+  GL.detachShader prog $ fragment shaders
+  GL.deleteObjectName $ vertex shaders
+  GL.deleteObjectName $ fragment shaders
+  GL.deleteObjectName prog
+  U.deleteVAO vao
+  return ()
 
 
--- draw :: Program -> GLFW.Window -> IO ()
--- draw (Program program attrib buf) win = do
---   GL.clearColor $= GL.Color4 0 0 0 1
---   GL.clear [GL.ColorBuffer]
---   (width, height) <- GLFW.getFramebufferSize win
---   GL.viewport $= (GL.Position 0 0, GL.Size (fromIntegral width) (fromIntegral height))
+draw :: Program -> GLFW.Window -> StateT DrawState IO ()
+draw (Program program vao _ mlocs) win = do
+  state @ DrawState { lastTime, cubeRotation, projectionMatrix } <- get
+  Just now <- liftIO GLFW.getTime
+  let newRot = cubeRotation + 45.0 * (now - lastTime)
+      angle = (double2Float newRot) * 180.0 / pi
+  put state { lastTime = now, cubeRotation = newRot }
+  liftIO $ do GL.clear [GL.ColorBuffer, GL.DepthBuffer]
+              GL.currentProgram $= Just program
+              let yrot = rotateAboutY (ident 4) angle
+              U.uniformMat (model mlocs) $= (toLists $ rotateAboutX yrot angle)
+              U.uniformMat (view mlocs) $= viewMatrix
+              U.uniformMat (projection mlocs) $= toLists projectionMatrix
+              U.withVAO vao $ do
+                GL.drawElements GL.Triangles 36 GL.UnsignedInt U.offset0
+                
 
---   GL.currentProgram $= Just program
---   GL.vertexAttribArray attrib $= GL.Enabled
---   GL.bindBuffer GL.ArrayBuffer $= Just buf
---   GL.vertexAttribPointer attrib $=
---     (GL.ToFloat, GL.VertexArrayDescriptor 2 GL.Float 0 U.offset0)
---   GL.drawArrays GL.Triangles 0 3 -- 3 vertices
---   GL.vertexAttribArray attrib $= GL.Disabled
-
-data Program = Program GL.Program GL.VertexArrayObject MatrixLocs
+data Program = Program GL.Program GL.VertexArrayObject Shaders MatrixLocs
+data Shaders = Shaders { vertex :: GL.Shader
+                       , fragment :: GL.Shader
+                       }
+data DrawState = DrawState { lastTime :: Double
+                           , cubeRotation :: Double
+                           , projectionMatrix :: Matrix Float
+                           }
 data MatrixLocs = MatrixLocs { projection :: GL.UniformLocation
                              , view :: GL.UniformLocation
                              , model :: GL.UniformLocation
                              }
-data Buffers = Buffers { vbo :: GL.BufferObject
-                       , ibo :: GL.BufferObject
-                       }
+
+viewMatrix = toLists $ translate (ident 4) 0 0 (-2)
 
 shaderPath :: FilePath
 shaderPath = "."
