@@ -32,7 +32,7 @@ main = do
   let projMat = makeProjMatrix 60 (fromIntegral width / fromIntegral height) 1 100
       initialDrawState = DrawState { lastTime = time, cubeRotation = 0, projectionMatrix = projMat }
   U.printError
-  -- W.mainLoop (evalStateT (draw prog win) initialDrawState) win
+  W.mainLoop (evalStateT (draw prog win) initialDrawState) win
   W.cleanup win
 
 initResources :: IO Program
