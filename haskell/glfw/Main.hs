@@ -7,6 +7,7 @@ module Main where
 
 import Control.Applicative
 import System.FilePath ((</>))
+import Control.Monad (when)
 import Control.Monad.Trans
 import Control.Monad.State.Strict
 
@@ -22,6 +23,8 @@ import MatrixOps
 import GHC.Float
 import Unsafe.Coerce (unsafeCoerce)
 
+import Types
+
 main :: IO ()
 main = do
   let width = 800
@@ -30,9 +33,13 @@ main = do
   prog <- initResources
   Just time <- GLFW.getTime
   let projMat = makeProjMatrix 60 (fromIntegral width / fromIntegral height) 1 100
-      initialDrawState = DrawState { lastTime = time, cubeRotation = 0, projectionMatrix = projMat }
+      initialDrawState = DrawState { lastTime = time
+                                   , cubeRotation = 0
+                                   , projectionMatrix = projMat
+                                   , lastWrite = time
+                                   }
   U.printError
-  W.mainLoop (evalStateT (draw prog win) initialDrawState) win
+  evalStateT (draw prog win) initialDrawState
   W.cleanup win
 
 initResources :: IO Program
@@ -76,39 +83,43 @@ destroyResources (Program prog vao shaders mlocs) = do
 
 
 draw :: Program -> GLFW.Window -> StateT DrawState IO ()
-draw (Program program vao _ mlocs) win = do
-  state @ DrawState { lastTime, cubeRotation, projectionMatrix } <- get
-  Just now <- liftIO GLFW.getTime
-  let newRot = cubeRotation + 45.0 * (now - lastTime)
-      angle = (double2Float newRot) * 180.0 / pi
-  put state { lastTime = now, cubeRotation = newRot }
-  liftIO $ do GL.clear [GL.ColorBuffer, GL.DepthBuffer]
-              GL.currentProgram $= Just program
-              let yrot = rotateAboutY (ident 4) angle
-              U.uniformMat (model mlocs) $= (glMat $ rotateAboutX yrot angle)
-              U.uniformMat (view mlocs) $= viewMatrix
-              U.uniformMat (projection mlocs) $= glMat projectionMatrix
-              U.withVAO vao $ do
-                GL.drawElements GL.Triangles 36 GL.UnsignedInt U.offset0
+draw prog@(Program program vao _ mlocs) win = do
+  close <- liftIO $ GLFW.windowShouldClose win
+  unless close $ do
+    state @ DrawState { lastTime, cubeRotation, projectionMatrix, lastWrite } <- get
+    Just now <- liftIO GLFW.getTime
+    let newRot = cubeRotation + 45.0 * (now - lastTime)
+        angle = (double2Float newRot) * 180.0 / pi
+        doWrite = now - lastWrite > 2.5
+    when doWrite $ do
+      put state { lastWrite = lastWrite + 2.5 }
+    liftIO $ do
+      putStrLn $ "now: "++(show now)++" lastWrite: "++(show lastWrite)++" doWrite: "++(show doWrite)
+    put state { lastTime = now, cubeRotation = newRot }
+    liftIO $ do GL.clear [GL.ColorBuffer, GL.DepthBuffer]
+                GL.currentProgram $= Just program
+                let yrot = rotateAboutY (ident 4) angle
+                    mod = (glMat $ rotateAboutX yrot angle)
+                    proj = glMat projectionMatrix
+                -- when doWrite $ do
+                --   putStrLn $ "Model Matrix\n"++(show mod)
+                --   putStrLn $ "View Matrix\n"++(show viewMatrix)
+                --   putStrLn $ "Projection Matrix\n"++(show proj)
                 
+                U.uniformMat (model mlocs) $= mod
+                U.uniformMat (view mlocs) $= viewMatrix
+                U.uniformMat (projection mlocs) $= proj
+                U.withVAO vao $ do
+                  GL.drawElements GL.Triangles 36 GL.UnsignedInt U.offset0
+                GLFW.swapBuffers win
+                GLFW.pollEvents
+    draw prog win
 
-data Program = Program GL.Program GL.VertexArrayObject Shaders MatrixLocs
-data Shaders = Shaders { vertex :: GL.Shader
-                       , fragment :: GL.Shader
-                       }
-data DrawState = DrawState { lastTime :: Double
-                           , cubeRotation :: Double
-                           , projectionMatrix :: Matrix Float
-                           }
-data MatrixLocs = MatrixLocs { projection :: GL.UniformLocation
-                             , view :: GL.UniformLocation
-                             , model :: GL.UniformLocation
-                             }
-
+                
 toGLList :: [[Float]] -> [[GL.GLfloat]]
 toGLList = unsafeCoerce
 
-glMat = toGLList . toLists 
+glMat = toGLList . toLists
 
 viewMatrix = glMat $ translate (ident 4) 0 0 (-2)
 

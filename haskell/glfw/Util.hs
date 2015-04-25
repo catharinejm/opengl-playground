@@ -5,11 +5,14 @@ module Util where
 
 import Control.Applicative
 import Control.Monad
+import Control.Monad.State.Strict
 import qualified Graphics.UI.GLFW as GLFW
 import System.Exit
 import System.IO
 
 import qualified Graphics.GLUtil as U
+
+import Types
 
 errorCallback :: GLFW.ErrorCallback
 errorCallback _ = hPutStrLn stderr
@@ -50,11 +53,11 @@ cleanup win = do
   exitSuccess
 
 
-mainLoop :: IO () -> GLFW.Window -> IO ()
-mainLoop draw w = do
-  close <- GLFW.windowShouldClose w
-  unless close $ do
-    draw
-    GLFW.swapBuffers w
-    GLFW.pollEvents
-    mainLoop draw w
+mainLoop :: GLFW.Window -> StateT DrawState IO ()
+mainLoop w = do
+  liftIO $ do
+    close <- GLFW.windowShouldClose w
+    unless close $ do
+      GLFW.swapBuffers w
+      GLFW.pollEvents
+  mainLoop w
