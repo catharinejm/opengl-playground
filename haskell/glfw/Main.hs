@@ -139,7 +139,7 @@ toGLList :: [[Float]] -> [[GL.GLfloat]]
 toGLList [] = []
 toGLList (f:fs) = map toGLF f : toGLList fs
 
-glMat = toGLList . toLists
+glMat = toGLList . toLists . tr
 
 viewMatrix = translate (ident 4) 0 0 (-2)
 
