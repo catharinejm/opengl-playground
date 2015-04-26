@@ -2,7 +2,13 @@ module MatrixOps where
 
 import Numeric.LinearAlgebra.HMatrix
 
-updateIdent = accum (ident 4) const
+
+colMaj ((r, c), v) = ((c, r), v)
+-- colMaj = id
+
+updateIdent :: [((Int, Int), Float)] -> Matrix Float
+updateIdent vals = accum (ident 4) const (map colMaj vals)
+
 
 rotateAboutX :: Matrix Float -> Float -> Matrix Float
 rotateAboutX m angle =
@@ -48,12 +54,12 @@ translate m x y z = m <> updateIdent [((3,0), x)
 
 makeProjMatrix :: Float -> Float -> Float -> Float -> Matrix Float
 makeProjMatrix fovy aspect near far =
-  accum zeros const [((0,0), xscale)
-                    ,((1,1), yscale)
-                    ,((2,2), -((far + near) / frustum))
-                    ,((2,3), -1)
-                    ,((3,2), -((2 * near * far) / frustum))
-                    ]
+  accum zeros const $ map colMaj [((0,0), xscale)
+                                 ,((1,1), yscale)
+                                 ,((2,2), -((far + near) / frustum))
+                                 ,((2,3), -1)
+                                 ,((3,2), -((2 * near * far) / frustum))
+                                 ]
   where
     zeros = (4><4) $ repeat 0.0
     yscale = cotan (fovy / 2)

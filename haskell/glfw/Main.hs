@@ -22,6 +22,7 @@ import Numeric.LinearAlgebra.HMatrix
 import MatrixOps
 import GHC.Float
 import Unsafe.Coerce (unsafeCoerce)
+import Data.Int
 
 import Types
 
@@ -40,16 +41,26 @@ main = do
                                    , numFrames = 0
                                    }
   U.printError
+  GLFW.setWindowSizeCallback win $ Just (windowSizeCallback prog)
   evalStateT (draw prog win) initialDrawState
   destroyResources prog
   W.cleanup win
 
+windowSizeCallback :: Program -> GLFW.WindowSizeCallback
+windowSizeCallback (Program glprog _ mlocs) win w h = do
+  let proj = makeProjMatrix 60 (fromIntegral w / fromIntegral h) 1 100
+  GL.viewport $= (GL.Position 0 0, GL.Size (fromIntegral w) (fromIntegral h))
+  withProgram glprog $ do
+    U.uniformMat (projection mlocs) $= glMat proj
+  
+
 initResources :: IO Program
 initResources = do
-  GL.clearColor $= GL.Color4 0 0 0 1
+  GL.clearColor $= GL.Color4 0 0 0 0
   GL.depthFunc $= Just GL.Less
   GL.cullFace $= Just GL.Back
   GL.frontFace $= GL.CCW
+  GL.viewport $= (GL.Position 0 0, GL.Size 800 600)
   -- compile shaders
   shaderProg@ShaderProgram {program} <-
     U.loadShaderProgram [(GL.VertexShader, shaderPath </> "SimpleShader.vertex.glsl")
@@ -58,13 +69,11 @@ initResources = do
   vao <- U.makeVAO $ do
     U.makeBuffer GL.ArrayBuffer vertices
     U.enableAttrib shaderProg "in_Position"
-    U.setAttrib shaderProg "in_Position" GL.ToFloat
-      (GL.VertexArrayDescriptor 4 GL.Float 0 U.offset0)
-
-    U.makeBuffer GL.ArrayBuffer colors
     U.enableAttrib shaderProg "in_Color"
-    U.setAttrib shaderProg "in_Color" GL.ToFloat (GL.VertexArrayDescriptor 4 GL.Float 0 U.offset0)
-
+    U.setAttrib shaderProg "in_Position" GL.ToFloat
+      (GL.VertexArrayDescriptor 4 GL.Float (4*8) U.offset0)
+    U.setAttrib shaderProg "in_Color" GL.ToFloat
+      (GL.VertexArrayDescriptor 4 GL.Float (4*8) $ U.offsetPtr (4*4))
     U.makeBuffer GL.ElementArrayBuffer indices
     return ()
   (Program program vao) <$> loadAttribs program
@@ -126,6 +135,7 @@ draw prog@(Program glprog vao mlocs) win = do
                 GLFW.pollEvents
     draw prog win
 
+
 withProgram :: GL.Program -> IO () -> IO ()
 withProgram prog action = do
   GL.currentProgram $= Just prog
@@ -139,7 +149,7 @@ toGLList :: [[Float]] -> [[GL.GLfloat]]
 toGLList [] = []
 toGLList (f:fs) = map toGLF f : toGLList fs
 
-glMat = toGLList . toLists . tr
+glMat = toGLList . toLists
 
 viewMatrix = translate (ident 4) 0 0 (-2)
 
@@ -147,30 +157,18 @@ shaderPath :: FilePath
 shaderPath = "."
 
 vertices :: [Float]
-vertices = [ -0.5, -0.5,  0.5, 1
-           , -0.5,  0.5,  0.5, 1
-           ,  0.5,  0.5,  0.5, 1
-           ,  0.5, -0.5,  0.5, 1
-           , -0.5, -0.5, -0.5, 1
-           , -0.5,  0.5, -0.5, 1
-           ,  0.5,  0.5, -0.5, 1
-           ,  0.5, -0.5, -0.5, 1
+vertices = [ -0.5, -0.5,  0.5, 1,  0, 0, 1, 1
+           , -0.5,  0.5,  0.5, 1,  1, 0, 0, 1
+           ,  0.5,  0.5,  0.5, 1,  0, 1, 0, 1
+           ,  0.5, -0.5,  0.5, 1,  1, 1, 0, 1
+           , -0.5, -0.5, -0.5, 1,  1, 1, 1, 1
+           , -0.5,  0.5, -0.5, 1,  1, 0, 0, 1
+           ,  0.5,  0.5, -0.5, 1,  1, 0, 1, 1
+           ,  0.5, -0.5, -0.5, 1,  0, 0, 1, 1
            ]
 
-colors :: [Float]
-colors = [ 0, 0, 1, 1
-         , 1, 0, 0, 1
-         , 0, 1, 0, 1
-         , 1, 1, 0, 1
-         , 1, 1, 1, 1
-         , 1, 0, 0, 1
-         , 1, 0, 1, 1
-         , 0, 0, 1, 1
-         ]
 
-
-
-indices :: [Int]
+indices :: [Int32]
 indices = [ 0,2,1,  0,3,2
           , 4,3,0,  4,7,3
           , 4,1,5,  4,0,1

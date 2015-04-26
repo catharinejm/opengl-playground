@@ -26,8 +26,9 @@ initialize width height title = do
   GLFW.setErrorCallback $ Just errorCallback
   successfulInit <- GLFW.init
   if not successfulInit then exitFailure else do
-    GLFW.windowHint $ GLFW.WindowHint'OpenGLDebugContext True
-    GLFW.windowHint $ GLFW.WindowHint'DepthBits 16
+    GLFW.defaultWindowHints
+    GLFW.windowHint $ GLFW.WindowHint'Visible False
+    GLFW.windowHint $ GLFW.WindowHint'Resizable True
     GLFW.windowHint $ GLFW.WindowHint'OpenGLForwardCompat True
     GLFW.windowHint $ GLFW.WindowHint'OpenGLProfile GLFW.OpenGLProfile'Core
     GLFW.windowHint $ GLFW.WindowHint'ContextVersionMajor 4
@@ -44,6 +45,7 @@ initialize width height title = do
        GLFW.makeContextCurrent mw
        GLFW.swapInterval 1
        GLFW.setKeyCallback window (Just keyCallback)
+       GLFW.showWindow window
        return window
 
 cleanup :: GLFW.Window -> IO ()
