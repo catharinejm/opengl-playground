@@ -97,9 +97,10 @@ initResources width height = do
   GL.frontFace  $= GL.CCW
   GL.viewport   $= (GL.Position 0 0, GL.Size 800 600)
   -- compile shaders
-  shaderProg <- U.loadShaderProgram [(GL.VertexShader, shaderPath </> "SimpleShader.vertex.glsl")
-                                    ,(GL.FragmentShader, shaderPath </> "SimpleShader.fragment.glsl")
-                                    ]
+  shaderProg@U.ShaderProgram {U.program} <-
+    U.loadShaderProgram [(GL.VertexShader, shaderPath </> "SimpleShader.vertex.glsl")
+                        ,(GL.FragmentShader, shaderPath </> "SimpleShader.fragment.glsl")
+                        ]
   vao <- U.makeVAO $ do
     U.makeBuffer GL.ArrayBuffer vertices
     U.enableAttrib shaderProg "in_Position"
