@@ -136,8 +136,8 @@ draw prog@(Program glprog vao mlocs) win = do
     DrawState { lastTime, cubeXRotation, cubeYRotation, rotateXSpeed, rotateYSpeed } <- get
     let newXRot = cubeXRotation + 45.0 * rotateXSpeed * (now - lastTime)
         newYRot = cubeYRotation + 45.0 * rotateYSpeed * (now - lastTime)
-        xangle = (double2Float newXRot) * pi / 180.0
-        yangle = (double2Float newYRot) * pi / 180.0
+        xangle = double2Float $ newXRot * pi / 180.0
+        yangle = double2Float $ newYRot * pi / 180.0
     modify $ \s -> s { lastTime = now, cubeXRotation = newXRot, cubeYRotation = newYRot }
     liftIO $ do GL.clear [GL.ColorBuffer, GL.DepthBuffer]
                 withProgram glprog $ do
@@ -167,23 +167,25 @@ processEvent ev =
    (EventKey win key sc keyState modKeys) ->
      if keyState == GLFW.KeyState'Pressed then
        case key of
-        GLFW.Key'Q -> close
+        GLFW.Key'Q      -> close
         GLFW.Key'Escape -> close
-        GLFW.Key'Up -> modify $ \s -> s { rotateXSpeed = speedUp (rotateXSpeed s) }
-        GLFW.Key'Down -> modify $ \s -> s { rotateXSpeed = speedDown (rotateXSpeed s) }
-        GLFW.Key'Left -> modify $ \s -> s { rotateYSpeed = speedDown (rotateYSpeed s) }
-        GLFW.Key'Right -> modify $ \s -> s { rotateYSpeed = speedUp (rotateYSpeed s) }
-        _ -> return ()
+        GLFW.Key'Up     -> modify $ \s -> s { rotateXSpeed = speedUp (rotateXSpeed s) }
+        GLFW.Key'Down   -> modify $ \s -> s { rotateXSpeed = speedDown (rotateXSpeed s) }
+        GLFW.Key'Left   -> modify $ \s -> s { rotateYSpeed = speedDown (rotateYSpeed s) }
+        GLFW.Key'Right  -> modify $ \s -> s { rotateYSpeed = speedUp (rotateYSpeed s) }
+        GLFW.Key'S      -> modify $ \s -> s { rotateXSpeed = 0, rotateYSpeed = 0, rotateZSpeed = 0 }
+        GLFW.Key'R      -> modify $ \s -> s { cubeXRotation = 0, cubeYRotation = 0 }
+        _               -> return ()
      else
        return ()
      where
        close = liftIO $ GLFW.setWindowShouldClose win True
        speedUp v = if v < 0 then
-                     let q = v / 1.3
+                     let q = v / 1.5
                      in if q > -0.1 then 0.0
                         else q
                    else
-                     let p = v * 1.3
+                     let p = v * 1.5
                      in if p < 0.1 then 0.1
                         else p
        speedDown v = -(speedUp (-v))
