@@ -17,10 +17,6 @@ import Types
 errorCallback :: GLFW.ErrorCallback
 errorCallback _ = hPutStrLn stderr
 
-keyCallback :: GLFW.KeyCallback
-keyCallback window key _ action _ = when (key == GLFW.Key'Escape && action == GLFW.KeyState'Pressed) $
-                                      GLFW.setWindowShouldClose window True
-
 initialize :: Int -> Int -> String -> IO GLFW.Window
 initialize width height title = do
   GLFW.setErrorCallback $ Just errorCallback
@@ -44,7 +40,6 @@ initialize width height title = do
        GLFW.setWindowPos window ((w - width) `div` 2) ((h - height) `div` 2)
        GLFW.makeContextCurrent mw
        GLFW.swapInterval 1
-       GLFW.setKeyCallback window (Just keyCallback)
        GLFW.showWindow window
        return window
 

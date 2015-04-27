@@ -8,13 +8,13 @@ import Control.Applicative
 import System.FilePath ((</>))
 import Control.Monad (when)
 import Control.Monad.Trans
-import Control.Monad.State.Strict
+import Control.Monad.RWS.Strict
+import Control.Concurrent.STM (TQueue, atomically, newTQueueIO, tryReadTQueue, writeTQueue)
 
 import qualified Graphics.Rendering.OpenGL as GL
 import Graphics.Rendering.OpenGL (($=))
 import qualified Graphics.UI.GLFW as GLFW
 import qualified Graphics.GLUtil as U
-import Graphics.GLUtil (ShaderProgram(..))
 
 import qualified Util as W
 
@@ -23,6 +23,7 @@ import MatrixOps
 import GHC.Float
 import Unsafe.Coerce (unsafeCoerce)
 import Data.Int
+import Data.List
 
 import Types
 
@@ -31,18 +32,26 @@ main = do
   let width = 800
       height = 600
   win <- W.initialize width height "My first cube"
-  prog <- initResources
+  prog <- initResources width height
   Just time <- GLFW.getTime
-  let projMat = makeProjMatrix 60 (fromIntegral width / fromIntegral height) 1 100
-      initialDrawState = DrawState { lastTime = time
+  eventQueue <- newTQueueIO :: IO (TQueue Event)
+  let initialDrawState = DrawState { lastTime     = time
                                    , cubeRotation = 0
-                                   , projectionMatrix = projMat
-                                   , lastWrite = time
-                                   , numFrames = 0
+                                   , lastWrite    = time
+                                   , numFrames    = 0
+                                   , viewMatrix   = translate (ident 4) 0 0 (-2)
+                                   , rotateXSpeed = 0.0
+                                   , rotateYSpeed = 0.0
+                                   , rotateZSpeed = 0.0
                                    }
-  U.printError
-  GLFW.setWindowSizeCallback win $ Just (windowSizeCallback prog)
-  evalStateT (draw prog win) initialDrawState
+      initialEnv = Env { initWidth  = width
+                       , initHeight = height
+                       , window     = win
+                       , eventQueue
+                       }
+  GLFW.setWindowSizeCallback win $ Just $ windowSizeCallback prog
+  GLFW.setKeyCallback        win $ Just $ keyCallback eventQueue
+  evalRWST (initMatrices prog >> draw prog win) initialEnv initialDrawState
   destroyResources prog
   W.cleanup win
 
@@ -52,20 +61,32 @@ windowSizeCallback (Program glprog _ mlocs) win w h = do
   GL.viewport $= (GL.Position 0 0, GL.Size (fromIntegral w) (fromIntegral h))
   withProgram glprog $ do
     U.uniformMat (projection mlocs) $= glMat proj
-  
 
-initResources :: IO Program
-initResources = do
+keyCallback :: TQueue Event -> GLFW.KeyCallback
+keyCallback tq window k sc ka mk = atomically $ writeTQueue tq $ EventKey window k sc ka mk
+
+initMatrices :: Program -> RWST Env () DrawState IO ()
+initMatrices (Program glprog _ mlocs) = do
+  viewMat <- gets viewMatrix
+  width <- asks initWidth
+  height <- asks initHeight
+  liftIO $ withProgram glprog $ do
+    U.uniformMat (view mlocs) $= glMat viewMat
+    let proj = makeProjMatrix 60 (fromIntegral width / fromIntegral height) 1 100
+    U.uniformMat (projection mlocs) $= glMat proj
+
+
+initResources :: Int -> Int -> IO Program
+initResources width height = do
   GL.clearColor $= GL.Color4 0 0 0 0
-  GL.depthFunc $= Just GL.Less
-  GL.cullFace $= Just GL.Back
-  GL.frontFace $= GL.CCW
-  GL.viewport $= (GL.Position 0 0, GL.Size 800 600)
+  GL.depthFunc  $= Just GL.Less
+  GL.cullFace   $= Just GL.Back
+  GL.frontFace  $= GL.CCW
+  GL.viewport   $= (GL.Position 0 0, GL.Size 800 600)
   -- compile shaders
-  shaderProg@ShaderProgram {program} <-
-    U.loadShaderProgram [(GL.VertexShader, shaderPath </> "SimpleShader.vertex.glsl")
-                        ,(GL.FragmentShader, shaderPath </> "SimpleShader.fragment.glsl")
-                        ]
+  shaderProg <- U.loadShaderProgram [(GL.VertexShader, shaderPath </> "SimpleShader.vertex.glsl")
+                                    ,(GL.FragmentShader, shaderPath </> "SimpleShader.fragment.glsl")
+                                    ]
   vao <- U.makeVAO $ do
     U.makeBuffer GL.ArrayBuffer vertices
     U.enableAttrib shaderProg "in_Position"
@@ -76,19 +97,17 @@ initResources = do
       (GL.VertexArrayDescriptor 4 GL.Float (4*8) $ U.offsetPtr (4*4))
     U.makeBuffer GL.ElementArrayBuffer indices
     return ()
-  (Program program vao) <$> loadAttribs program
-  where
-    loadAttribs p = do
-      proj <- GL.get (GL.uniformLocation p "ProjectionMatrix")
-      v <- GL.get (GL.uniformLocation p "ViewMatrix")
-      mod <- GL.get (GL.uniformLocation p "ModelMatrix")
-      return MatrixLocs { projection = proj
-                        , view = v
-                        , model = mod
-                        }
+  let program = (U.program shaderProg)
+      vmLoc = U.getUniform shaderProg "ViewMatrix"
+      pmLoc = U.getUniform shaderProg "ProjectionMatrix"
+      mmLoc = U.getUniform shaderProg "ModelMatrix"
+  return $ Program program vao MatrixLocs { projection = pmLoc
+                                          , view = vmLoc
+                                          , model = mmLoc
+                                          }
 
 destroyResources :: Program -> IO ()
-destroyResources (Program prog vao mlocs) = do
+destroyResources (Program prog vao _) = do
   shaders <- GL.get $ GL.attachedShaders prog
   mapM_ (GL.detachShader prog) shaders
   mapM_ GL.deleteObjectName shaders
@@ -97,7 +116,7 @@ destroyResources (Program prog vao mlocs) = do
   return ()
 
 
-draw :: Program -> GLFW.Window -> StateT DrawState IO ()
+draw :: Program -> GLFW.Window -> RWST Env () DrawState IO ()
 draw prog@(Program glprog vao mlocs) win = do
   close <- liftIO $ GLFW.windowShouldClose win
   unless close $ do
@@ -108,33 +127,61 @@ draw prog@(Program glprog vao mlocs) win = do
     when doWrite $ do
       let msPerFrame = (now - lastWrite) * 1000.0 / fromIntegral numFrames
           fps = fromIntegral numFrames / (now - lastWrite)
-      liftIO $ GLFW.setWindowTitle win ("ms/f: "++(show msPerFrame)++", FPS: "++(show fps))
+      liftIO $ GLFW.setWindowTitle win
+        ("Haskell: ms/f: "++(show msPerFrame)++", FPS: "++(show fps))
       modify $ \s -> s { lastWrite = lastWrite + 2.5
                        , numFrames = 0
                        }
-    DrawState { lastTime, cubeRotation, projectionMatrix } <- get
-    let newRot = cubeRotation + 45.0 * (now - lastTime)
+    DrawState { lastTime, cubeRotation } <- get
+    rxv <- gets rotateXSpeed
+    ryv <- gets rotateYSpeed
+    let newRot = cubeRotation + (45.0 * float2Double rxv) * (now - lastTime)
         angle = (double2Float newRot) * pi / 180.0
     modify $ \s -> s { lastTime = now, cubeRotation = newRot }
     liftIO $ do GL.clear [GL.ColorBuffer, GL.DepthBuffer]
                 withProgram glprog $ do
                   let yrot = rotateAboutY (ident 4) angle
                       mod = rotateAboutX yrot angle
-                      proj = projectionMatrix
-                  when doWrite $ do
-                    putStrLn $ "Model Matrix\n"++(show mod)
-                    putStrLn $ "View Matrix\n"++(show viewMatrix)
-                    putStrLn $ "Projection Matrix\n"++(show proj)
-
-                  U.uniformMat (model mlocs) $= glMat mod
-                  U.uniformMat (view mlocs) $= glMat viewMatrix
-                  U.uniformMat (projection mlocs) $= glMat proj
                   U.withVAO vao $ do
+                    U.uniformMat (model mlocs) $= glMat mod
                     GL.drawElements GL.Triangles 36 GL.UnsignedInt U.offset0
                 GLFW.swapBuffers win
                 GLFW.pollEvents
+    processEvents
     draw prog win
 
+processEvents :: RWST Env () DrawState IO ()
+processEvents = do
+  tq <- asks eventQueue
+  me <- liftIO $ atomically $ tryReadTQueue tq
+  case me of
+   Just e -> do
+     processEvent e
+     processEvents
+   Nothing -> return ()
+
+processEvent :: Event -> RWST Env () DrawState IO ()
+processEvent ev =
+  case ev of
+   (EventKey win key sc keyState modKeys) ->
+     if keyState == GLFW.KeyState'Pressed then
+       case key of
+        GLFW.Key'Q -> close
+        GLFW.Key'Escape -> close
+        GLFW.Key'Left -> modify $ \s -> s { rotateXSpeed = speedDown (rotateXSpeed s) }
+        GLFW.Key'Right -> modify $ \s -> s { rotateXSpeed = speedUp (rotateXSpeed s) }
+        _ -> return ()
+     else
+       return ()
+     where
+       close = liftIO $ GLFW.setWindowShouldClose win True
+       speedUp v = if v < 0 then
+                     if v > -0.1 then 0.0
+                     else v / 2
+                   else 
+                     if v < 0.1 then 0.1
+                     else v * 2
+       speedDown v = -(speedUp (-v))
 
 withProgram :: GL.Program -> IO () -> IO ()
 withProgram prog action = do
@@ -142,16 +189,10 @@ withProgram prog action = do
   action
   GL.currentProgram $= Nothing
 
-toGLF :: Float -> GL.GLfloat
-toGLF = unsafeCoerce
+toGLLists :: [[Float]] -> [[GL.GLfloat]]
+toGLLists = unsafeCoerce
 
-toGLList :: [[Float]] -> [[GL.GLfloat]]
-toGLList [] = []
-toGLList (f:fs) = map toGLF f : toGLList fs
-
-glMat = toGLList . toLists
-
-viewMatrix = translate (ident 4) 0 0 (-2)
+glMat = toGLLists . toLists
 
 shaderPath :: FilePath
 shaderPath = "."
