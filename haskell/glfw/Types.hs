@@ -8,12 +8,13 @@ import Control.Concurrent.STM (TQueue)
 data Program = Program GL.Program GL.VertexArrayObject MatrixLocs
 data DrawState = DrawState { lastTime     :: !Double
                            , lastWrite    :: !Double
-                           , cubeRotation :: !Double
+                           , cubeXRotation :: !Double
+                           , cubeYRotation :: !Double
                            , numFrames    :: !Int
                            , viewMatrix   :: !(Matrix Float)
-                           , rotateXSpeed :: !Float
-                           , rotateYSpeed :: !Float
-                           , rotateZSpeed :: !Float
+                           , rotateXSpeed :: !Double
+                           , rotateYSpeed :: !Double
+                           , rotateZSpeed :: !Double
                            }
 data MatrixLocs = MatrixLocs { projection :: !GL.UniformLocation
                              , view       :: !GL.UniformLocation

@@ -36,7 +36,8 @@ main = do
   Just time <- GLFW.getTime
   eventQueue <- newTQueueIO :: IO (TQueue Event)
   let initialDrawState = DrawState { lastTime     = time
-                                   , cubeRotation = 0
+                                   , cubeXRotation = 0
+                                   , cubeYRotation = 0
                                    , lastWrite    = time
                                    , numFrames    = 0
                                    , viewMatrix   = translate (ident 4) 0 0 (-2)
@@ -132,16 +133,16 @@ draw prog@(Program glprog vao mlocs) win = do
       modify $ \s -> s { lastWrite = lastWrite + 2.5
                        , numFrames = 0
                        }
-    DrawState { lastTime, cubeRotation } <- get
-    rxv <- gets rotateXSpeed
-    ryv <- gets rotateYSpeed
-    let newRot = cubeRotation + (45.0 * float2Double rxv) * (now - lastTime)
-        angle = (double2Float newRot) * pi / 180.0
-    modify $ \s -> s { lastTime = now, cubeRotation = newRot }
+    DrawState { lastTime, cubeXRotation, cubeYRotation, rotateXSpeed, rotateYSpeed } <- get
+    let newXRot = cubeXRotation + 45.0 * rotateXSpeed * (now - lastTime)
+        newYRot = cubeYRotation + 45.0 * rotateYSpeed * (now - lastTime)
+        xangle = (double2Float newXRot) * pi / 180.0
+        yangle = (double2Float newYRot) * pi / 180.0
+    modify $ \s -> s { lastTime = now, cubeXRotation = newXRot, cubeYRotation = newYRot }
     liftIO $ do GL.clear [GL.ColorBuffer, GL.DepthBuffer]
                 withProgram glprog $ do
-                  let yrot = rotateAboutY (ident 4) angle
-                      mod = rotateAboutX yrot angle
+                  let yrot = rotateAboutY (ident 4) yangle
+                      mod = rotateAboutX yrot xangle
                   U.withVAO vao $ do
                     U.uniformMat (model mlocs) $= glMat mod
                     GL.drawElements GL.Triangles 36 GL.UnsignedInt U.offset0
@@ -168,19 +169,23 @@ processEvent ev =
        case key of
         GLFW.Key'Q -> close
         GLFW.Key'Escape -> close
-        GLFW.Key'Left -> modify $ \s -> s { rotateXSpeed = speedDown (rotateXSpeed s) }
-        GLFW.Key'Right -> modify $ \s -> s { rotateXSpeed = speedUp (rotateXSpeed s) }
+        GLFW.Key'Up -> modify $ \s -> s { rotateXSpeed = speedUp (rotateXSpeed s) }
+        GLFW.Key'Down -> modify $ \s -> s { rotateXSpeed = speedDown (rotateXSpeed s) }
+        GLFW.Key'Left -> modify $ \s -> s { rotateYSpeed = speedDown (rotateYSpeed s) }
+        GLFW.Key'Right -> modify $ \s -> s { rotateYSpeed = speedUp (rotateYSpeed s) }
         _ -> return ()
      else
        return ()
      where
        close = liftIO $ GLFW.setWindowShouldClose win True
        speedUp v = if v < 0 then
-                     if v > -0.1 then 0.0
-                     else v / 2
-                   else 
-                     if v < 0.1 then 0.1
-                     else v * 2
+                     let q = v / 1.3
+                     in if q > -0.1 then 0.0
+                        else q
+                   else
+                     let p = v * 1.3
+                     in if p < 0.1 then 0.1
+                        else p
        speedDown v = -(speedUp (-v))
 
 withProgram :: GL.Program -> IO () -> IO ()
