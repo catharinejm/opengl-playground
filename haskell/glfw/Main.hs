@@ -9,7 +9,7 @@ import System.FilePath ((</>))
 import Control.Monad (when)
 import Control.Monad.Trans
 import Control.Monad.RWS.Strict
-import Control.Concurrent.STM (TQueue, atomically, newTQueueIO, tryReadTQueue, writeTQueue)
+import Control.Concurrent.STM (TQueue, atomically, newTQueueIO, tryReadTQueue, writeTQueue, tryPeekTQueue)
 
 import qualified Graphics.Rendering.OpenGL as GL
 import Graphics.Rendering.OpenGL (($=))
@@ -31,23 +31,23 @@ main :: IO ()
 main = do
   let width = 800
       height = 600
-  win <- W.initialize width height "My first cube"
+  win <- W.initialize width height "Hello from Haskell!"
   prog <- initResources width height
   Just time <- GLFW.getTime
   eventQueue <- newTQueueIO :: IO (TQueue Event)
-  let initialDrawState = DrawState { lastTime     = time
+  let initialDrawState = DrawState { lastTime      = time
                                    , cubeXRotation = 0
                                    , cubeYRotation = 0
-                                   , lastWrite    = time
-                                   , numFrames    = 0
-                                   , viewMatrix   = translate (ident 4) 0 0 (-2)
-                                   , rotateXSpeed = 0.0
-                                   , rotateYSpeed = 0.0
-                                   , rotateZSpeed = 0.0
+                                   , lastWrite     = time
+                                   , numFrames     = 0
+                                   , viewMatrix    = translate (ident 4) 0 0 (-2)
+                                   , rotateXSpeed  = 0.0
+                                   , rotateYSpeed  = 0.0
+                                   , rotateZSpeed  = 0.0
                                    }
       initialEnv = Env { initWidth  = width
                        , initHeight = height
-                       , window     = win
+                       , envWindow  = win
                        , eventQueue
                        }
   GLFW.setWindowSizeCallback win $ Just $ windowSizeCallback prog
@@ -55,6 +55,7 @@ main = do
   evalRWST (initMatrices prog >> draw prog win) initialEnv initialDrawState
   destroyResources prog
   W.cleanup win
+
 
 windowSizeCallback :: Program -> GLFW.WindowSizeCallback
 windowSizeCallback (Program glprog _ mlocs) win w h = do
@@ -64,7 +65,18 @@ windowSizeCallback (Program glprog _ mlocs) win w h = do
     U.uniformMat (projection mlocs) $= glMat proj
 
 keyCallback :: TQueue Event -> GLFW.KeyCallback
-keyCallback tq window k sc ka mk = atomically $ writeTQueue tq $ EventKey window k sc ka mk
+keyCallback tq window key scanCode keyState modifierKeys =
+  unless (keyState == GLFW.KeyState'Released) $ do
+    Just now <- GLFW.getTime
+    atomically $ do
+      top <- tryPeekTQueue tq
+      let thisInfo = KeyEventInfo { eventWindow = window, key, scanCode, keyState, modifierKeys }
+      case top of
+       Just (Event time lastInfo) ->
+         if now - time > 0.1 || lastInfo /= thisInfo
+         then writeTQueue tq $ Event now thisInfo
+         else return ()
+       Nothing -> writeTQueue tq $ Event now thisInfo
 
 initMatrices :: Program -> RWST Env () DrawState IO ()
 initMatrices (Program glprog _ mlocs) = do
@@ -162,22 +174,19 @@ processEvents = do
    Nothing -> return ()
 
 processEvent :: Event -> RWST Env () DrawState IO ()
-processEvent ev =
-  case ev of
-   (EventKey win key sc keyState modKeys) ->
-     if keyState == GLFW.KeyState'Pressed then
-       case key of
-        GLFW.Key'Q      -> close
-        GLFW.Key'Escape -> close
-        GLFW.Key'Up     -> modify $ \s -> s { rotateXSpeed = speedUp (rotateXSpeed s) }
-        GLFW.Key'Down   -> modify $ \s -> s { rotateXSpeed = speedDown (rotateXSpeed s) }
-        GLFW.Key'Left   -> modify $ \s -> s { rotateYSpeed = speedDown (rotateYSpeed s) }
-        GLFW.Key'Right  -> modify $ \s -> s { rotateYSpeed = speedUp (rotateYSpeed s) }
-        GLFW.Key'S      -> modify $ \s -> s { rotateXSpeed = 0, rotateYSpeed = 0, rotateZSpeed = 0 }
-        GLFW.Key'R      -> modify $ \s -> s { cubeXRotation = 0, cubeYRotation = 0 }
-        _               -> return ()
-     else
-       return ()
+processEvent (Event _ info) =
+  case info of
+   (KeyEventInfo win key sc keyState modKeys) ->
+     case key of
+      GLFW.Key'Q      -> close
+      GLFW.Key'Escape -> close
+      GLFW.Key'Up     -> modify $ \s -> s { rotateXSpeed = speedUp (rotateXSpeed s) }
+      GLFW.Key'Down   -> modify $ \s -> s { rotateXSpeed = speedDown (rotateXSpeed s) }
+      GLFW.Key'Left   -> modify $ \s -> s { rotateYSpeed = speedDown (rotateYSpeed s) }
+      GLFW.Key'Right  -> modify $ \s -> s { rotateYSpeed = speedUp (rotateYSpeed s) }
+      GLFW.Key'S      -> modify $ \s -> s { rotateXSpeed = 0, rotateYSpeed = 0, rotateZSpeed = 0 }
+      GLFW.Key'R      -> modify $ \s -> s { cubeXRotation = 0, cubeYRotation = 0 }
+      _               -> return ()
      where
        close = liftIO $ GLFW.setWindowShouldClose win True
        speedUp v = if v < 0 then
